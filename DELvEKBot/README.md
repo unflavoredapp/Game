@@ -1,60 +1,61 @@
-# DELvEKBot — phone worker + VPS queue API
+# DELvEKBot — phone worker + VPS panel
 
-- **Phone:** `delvekbot-worker.sh` (buddy3 decrypt + upload)
-- **VPS:** `server/` FastAPI queue at `https://delvek.bot/`
+Flow: **iPhone worker → VPS (Node/PM2) → Telegram**
 
-## VPS install (Debian + Apache)
+| Piece | Path |
+|------|------|
+| Phone worker | `delvekbot-worker.sh` |
+| Control panel + API | `panel/index.js`, `panel/css.js` |
+| PM2 config | `panel/ecosystem.config.cjs` |
 
-On the server as root:
+## VPS install (Debian + Apache + PM2)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/unflavoredapp/Game/main/DELvEKBot/server/install-vps.sh -o /tmp/install-vps.sh
-# Or after cloning:
-git clone https://github.com/unflavoredapp/Game.git /opt/delvekbot
-bash /opt/delvekbot/DELvEKBot/server/install-vps.sh
+git clone --branch cursor/delvekbot-server-api-708a https://github.com/unflavoredapp/Game.git /opt/delvekbot
+bash /opt/delvekbot/DELvEKBot/panel/install-vps.sh
 ```
 
-That will:
+After install:
 
-1. Install the API under `/opt/delvekbot`
-2. Write tokens to `/etc/delvekbot.env`
-3. Start `delvekbot-api` on `127.0.0.1:8080`
-4. Proxy `/api/` and `/health` through Apache
+1. Edit `/etc/delvekbot.env` — set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`
+2. `cd /opt/delvekbot/DELvEKBot/panel && pm2 restart delvekbot --update-env`
+3. Open dashboard: `https://delvek.bot/?token=YOUR_ADMIN_TOKEN`
 
-Enqueue a job (from any machine with the admin token):
+PM2 helpers:
 
 ```sh
-source /etc/delvekbot.env
-curl -fsS -X POST https://delvek.bot/api/decrypt/admin/enqueue \
-  -H "X-Delvekbot-Admin-Token: ${DELVEKBOT_ADMIN_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://apps.apple.com/us/app/example/id123456789"}'
+pm2 status
+pm2 logs delvekbot
+pm2 restart delvekbot
 ```
 
-## Phone worker
+## Phone `.env`
 
 ```sh
-chmod 700 delvekbot-worker.sh
-cp .env.example .env
-# Set DECRYPT_SITE_URL=https://delvek.bot/
-# Set DECRYPT_WORKER_TOKEN to the value from /etc/delvekbot.env on the VPS
+DECRYPT_SITE_URL=https://delvek.bot/
+DECRYPT_WORKER_TOKEN=<from /etc/delvekbot.env>
+BUDDY3_BIN=/var/mobile/Documents/buddy3
+BUDDY3_OUT_DIR=/var/mobile/Documents
+```
+
+```sh
 bash delvekbot-worker.sh
 ```
 
-Needs on-device: `curl`, `jq`, `flock` (`util-linux`), and `buddy3`.
+## Telegram
 
-## Layout
+1. Talk to `@BotFather` → create bot → copy token  
+2. Start a chat with the bot (or add it to a channel)  
+3. Get chat id (`@userinfobot` or similar)  
+4. Put both values in `/etc/delvekbot.env` and restart PM2  
 
-| Path | Role |
-|------|------|
-| `delvekbot-worker.sh` | iPhone poll/decrypt/upload client |
-| `server/app.py` | Queue API (claim/progress/fail/complete) |
-| `server/install-vps.sh` | Debian install + Apache proxy |
-| `SERVER-CONTRACT.md` | HTTP contract |
-| `tests/test-claim-parse.sh` | Claim JSON regression tests |
+Completed IPAs are uploaded from the phone, speed is recorded, then the file is sent to Telegram with upload stats in the caption.
 
-## Tests
+## Local panel dev
 
 ```sh
-bash DELvEKBot/tests/test-claim-parse.sh
+cd DELvEKBot/panel
+cp .env.example .env   # set tokens
+npm install
+npm start
 ```
