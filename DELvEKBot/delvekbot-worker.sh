@@ -33,9 +33,12 @@
 #   COUNTRIES=us,in                      # or auto from phone/accounts.json
 #   DELVEKBOT_PHONE_DIR=.../DELvEKBot/phone
 #   DELVEKBOT_NO_SUDO=1                  # skip sudo re-exec (tests only)
+#   IPA_KEEP_SECONDS=300                 # delete uploaded IPA on-device after N seconds (0=now)
 #
 # Notes:
 # - Always runs as root on the phone (re-execs via sudo -E unless already root).
+# - After a successful upload, the local decrypted IPA is deleted after IPA_KEEP_SECONDS
+#   (default 300 = 5 minutes) so Documents does not fill with old dumps.
 # - jq is required for reliable JSON parsing.
 # - The worker uses the existing /progress endpoint for heartbeat messages.
 #   The server must extend the job lease on progress calls if you want those
@@ -74,6 +77,7 @@ UPLOAD_MAX_TIME="${UPLOAD_MAX_TIME:-1800}"
 SKIP_FETCH="${SKIP_FETCH:-0}"
 SKIP_ACCOUNT_SWITCH="${SKIP_ACCOUNT_SWITCH:-0}"
 FETCH_WAIT_SECONDS="${FETCH_WAIT_SECONDS:-8}"
+IPA_KEEP_SECONDS="${IPA_KEEP_SECONDS:-300}"
 LOCK_FILE="${DELVEKBOT_LOCK_FILE:-${DOCS}/.delvekbot-worker.lock}"
 LOCK_DIR="${DELVEKBOT_LOCK_DIR:-${DOCS}/.delvekbot-worker.lockdir}"
 
@@ -488,6 +492,33 @@ upload_ipa() {
   ' >/dev/null 2>&1
 }
 
+# Delete the on-device decrypted IPA after a grace period (default 5 minutes).
+# Survives worker exit via nohup so Documents stays clear even if the loop moves on.
+schedule_ipa_delete() {
+  local ipa="$1"
+  local secs="$IPA_KEEP_SECONDS"
+  local quoted
+
+  [[ -n "$ipa" && -e "$ipa" ]] || return 0
+  [[ "$secs" =~ ^[0-9]+$ ]] || secs=300
+
+  if [[ "$secs" -eq 0 ]]; then
+    log "IPA_KEEP_SECONDS=0 · deleting $(basename "$ipa") now"
+    rm -f -- "$ipa" || true
+    return 0
+  fi
+
+  quoted="$(printf '%q' "$ipa")"
+  log "will delete $(basename "$ipa") from device in ${secs}s"
+  # Detach so the poll loop (or worker exit) does not cancel the delete.
+  # shellcheck disable=SC2086
+  if command -v nohup >/dev/null 2>&1; then
+    nohup bash -c "sleep ${secs}; rm -f -- ${quoted}" >/dev/null 2>&1 &
+  else
+    ( sleep "$secs"; rm -f -- "$ipa" ) >/dev/null 2>&1 &
+  fi
+}
+
 handle_job() {
   local id="$1" url="$2" job_country="${3:-$COUNTRY}"
   CURRENT_JOB_ID="$id"
@@ -573,6 +604,7 @@ handle_job() {
   progress "$id" "DELvEKBot · uploading $(basename "$ipa")"
   if upload_ipa "$id" "$ipa" "$name"; then
     log "upload completed for ${name} (${bid})"
+    schedule_ipa_delete "$ipa"
   else
     fail_job "$id" "IPA upload failed or the server returned an invalid completion response."
   fi
