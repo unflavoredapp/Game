@@ -1,0 +1,274 @@
+openapi: 3.0.3
+info:
+  title: Decrypt Web Protocol
+  version: "0.0"
+  description: |
+    Coordinated decryption job network for getipa.fast.
+    No crypto ledgers — shared-secret auth, leases, and capability routing.
+servers:
+  - url: https://getipa.fast
+    description: Production (getipa.fast)
+  - url: http://127.0.0.1:3040
+    description: Local reference relay
+paths:
+  /v0/health:
+    get:
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  protocol: { type: string }
+                  version: { type: string }
+  /v0/jobs:
+    post:
+      summary: Enqueue a decrypt job
+      security: [{ OperatorToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JobCreate"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    get:
+      summary: List jobs
+      security: [{ OperatorToken: [] }]
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        "200":
+          description: Job list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobs:
+                    type: array
+                    items: { $ref: "#/components/schemas/Job" }
+  /v0/jobs/{id}:
+    get:
+      summary: Get one job
+      security: [{ OperatorToken: [] }]
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Job
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v0/nodes:
+    get:
+      summary: List nodes
+      security: [{ OperatorToken: [] }]
+      responses:
+        "200":
+          description: Nodes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nodes:
+                    type: array
+                    items: { $ref: "#/components/schemas/Node" }
+  /v0/artifacts/{jobId}:
+    get:
+      summary: Download artifact bytes
+      security: [{ OperatorToken: [] }]
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Artifact body
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v0/node/hello:
+    post:
+      summary: Register or refresh a node
+      security: [{ NodeToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NodeHello" }
+      responses:
+        "200":
+          description: Registered
+  /v0/node/claim:
+    post:
+      summary: Claim next compatible job
+      security: [{ NodeToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NodeClaim" }
+      responses:
+        "200":
+          description: Claim result
+  /v0/node/progress:
+    post:
+      summary: Report progress and extend lease
+      security: [{ NodeToken: [] }]
+      responses:
+        "200":
+          description: Updated
+        "409":
+          description: Lease conflict
+  /v0/node/fail:
+    post:
+      summary: Fail the leased job
+      security: [{ NodeToken: [] }]
+      responses:
+        "200":
+          description: Failed
+        "409":
+          description: Lease conflict
+  /v0/node/complete:
+    post:
+      summary: Upload artifact bytes
+      security: [{ NodeToken: [] }]
+      parameters:
+        - name: jobId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: name
+          in: query
+          required: true
+          schema: { type: string }
+        - name: nodeId
+          in: query
+          required: true
+          description: Node id (alternate header X-Decrypt-Node-Id)
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        "200":
+          description: Completed
+        "409":
+          description: Lease conflict
+
+components:
+  securitySchemes:
+    OperatorToken:
+      type: apiKey
+      in: header
+      name: X-Decrypt-Operator-Token
+    NodeToken:
+      type: apiKey
+      in: header
+      name: X-Decrypt-Node-Token
+  parameters:
+    JobId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+  responses:
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+    JobCreate:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string }
+        country: { type: string }
+        constraints:
+          type: object
+          properties:
+            backends:
+              type: array
+              items: { type: string }
+    Job:
+      type: object
+      properties:
+        id: { type: string }
+        url: { type: string }
+        country: { type: string }
+        status: { type: string, enum: [queued, leased, done, failed] }
+        constraints: { type: object }
+        progress: { type: object, nullable: true }
+        artifact: { type: object, nullable: true }
+        error: { type: string, nullable: true }
+        lease: { type: object, nullable: true }
+        createdAt: { type: number }
+        updatedAt: { type: number }
+    Node:
+      type: object
+      properties:
+        id: { type: string }
+        status: { type: string }
+        countries:
+          type: array
+          items: { type: string }
+        capabilities: { type: object }
+        freeBytes: { type: number, nullable: true }
+        totalBytes: { type: number, nullable: true }
+        activeJobId: { type: string, nullable: true }
+        lastSeenAt: { type: number }
+        jobsDone: { type: number }
+        jobsFailed: { type: number }
+    NodeHello:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string }
+        countries:
+          type: array
+          items: { type: string }
+        capabilities: { type: object }
+        freeBytes: { type: number }
+        totalBytes: { type: number }
+    NodeClaim:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string }
+        countries:
+          type: array
+          items: { type: string }
