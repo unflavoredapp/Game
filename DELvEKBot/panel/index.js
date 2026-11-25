@@ -264,7 +264,7 @@ function renderDashboard() {
     </div>
 
     <div class="grid" style="margin-top:16px">
-      <div class="panel span-6">
+      <div class="panel span-12">
         <h2>Enqueue App Store URL</h2>
         <label for="url">URL</label>
         <input id="url" placeholder="https://apps.apple.com/in/app/.../id123456789" />
@@ -276,7 +276,7 @@ function renderDashboard() {
         </div>
         <div id="enqueue-msg"></div>
       </div>
-      <div class="panel span-6">
+      <div class="panel span-12">
         <h2>Phones</h2>
         <div id="phones" class="muted">Loading…</div>
       </div>
@@ -326,13 +326,52 @@ function renderDashboard() {
       document.getElementById("s-tg").innerHTML = mbps(data.avgMbps.vpsToTelegram) + "<small>avg VPS → Telegram</small>";
 
       const phones = data.phones || [];
-      document.getElementById("phones").innerHTML = phones.length ? phones.map(p => {
-        const online = p.lastSeenAt && (Date.now() - p.lastSeenAt) < 120000;
-        return "<div style='margin-bottom:10px'><strong>" + (p.id || "phone") + "</strong> " +
-          "<span class='pill " + (online ? "online" : "offline") + "'>" + (online ? "online" : "offline") + "</span> " +
-          (p.country ? "<span class='pill'>" + p.country + "</span>" : "") + "<br>" +
-          "<span class='muted'>" + ago(p.lastSeenAt) + " · " + (p.jobsDone||0) + " done · " + bytes(p.bytesIn||0) + "</span></div>";
-      }).join("") : "<span class='muted'>No phones have claimed yet.</span>";
+      document.getElementById("phones").innerHTML = phones.length
+        ? "<div class='phone-list'>" + phones.map(p => {
+            const online = p.lastSeenAt && (Date.now() - p.lastSeenAt) < 120000;
+            const countries = (p.countries && p.countries.length)
+              ? p.countries
+              : (p.country ? [p.country] : []);
+            const active = p.activeJob;
+            const pct = active
+              ? Math.max(0, Math.min(100, Number(active.percent) || 0))
+              : (typeof p.successRate === "number" ? p.successRate : null);
+            const pctLabel = active ? (pct + "%") : (pct != null ? (pct + "%") : "—");
+            const stage = active ? (active.stage || "working") : (online ? "idle" : "offline");
+            return "<article class='phone-card'>" +
+              "<div class='phone-card-top'>" +
+                "<div style='min-width:0;flex:1'>" +
+                  "<div class='job-title'>" + (p.id || "phone") + "</div>" +
+                  "<div class='job-meta'>" +
+                    "<span class='pill " + (online ? "online" : "offline") + "'>" + (online ? "online" : "offline") + "</span>" +
+                    (active ? "<span class='pill leased'>busy</span>" : "") +
+                    countries.map(c => "<span class='pill'>" + String(c).toUpperCase() + "</span>").join("") +
+                    "<span>" + ago(p.lastSeenAt) + "</span>" +
+                  "</div>" +
+                "</div>" +
+                "<div class='job-progress-pct' title='" + (active ? "active job" : "success rate") + "'>" + pctLabel + "</div>" +
+              "</div>" +
+              "<div class='phone-stats'>" +
+                "<div class='phone-stat'><span class='n'>" + (p.jobsDone || 0) + "</span><span class='l'>done</span></div>" +
+                "<div class='phone-stat'><span class='n'>" + (p.jobsFailed || 0) + "</span><span class='l'>failed</span></div>" +
+                "<div class='phone-stat'><span class='n'>" + bytes(p.bytesIn || 0) + "</span><span class='l'>uploaded</span></div>" +
+              "</div>" +
+              (active
+                ? ("<div class='phone-active'>" +
+                    "<div class='job-progress-head'>" +
+                      "<span class='job-stage'>" + stage + " · " + (active.name || active.id || "job") + "</span>" +
+                      "<span class='muted mono'>" + pct + " / 100</span>" +
+                    "</div>" +
+                    "<div class='job-progress-track' role='progressbar' aria-valuenow='" + pct + "' aria-valuemin='0' aria-valuemax='100'>" +
+                      "<div class='job-progress-fill' style='width:" + pct + "%'></div>" +
+                    "</div>" +
+                    (active.progress ? "<div class='job-msg'>" + active.progress + "</div>" : "") +
+                  "</div>")
+                : ("<div class='phone-idle'>" + (online ? "Waiting for next job · success " + (pct != null ? pct + "%" : "—") : "No recent heartbeat") + "</div>")
+              ) +
+            "</article>";
+          }).join("") + "</div>"
+        : "<span class='muted'>No phones have claimed yet.</span>";
 
       const jobs = data.jobs || [];
       function jobPercent(j) {

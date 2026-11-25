@@ -295,6 +295,68 @@ th { color: var(--muted); font-weight: 600; }
   font-variant-numeric: tabular-nums;
 }
 
+.phone-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.phone-card {
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 14px;
+}
+
+.phone-card-top {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.phone-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.phone-stat {
+  border: 1px solid var(--line);
+  padding: 8px 10px;
+  background: #fffdf8;
+}
+
+.phone-stat .n {
+  font-family: Syne, sans-serif;
+  font-weight: 800;
+  font-size: 1.05rem;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.phone-stat .l {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.65rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.phone-active {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.phone-idle {
+  margin-top: 12px;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
 footer {
   margin-top: 28px;
   color: var(--muted);

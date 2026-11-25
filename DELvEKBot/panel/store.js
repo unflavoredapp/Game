@@ -105,9 +105,39 @@ class Store {
   }
 
   listPhones() {
-    return Object.values(this.state.phones).sort(
-      (a, b) => (b.lastSeenAt || 0) - (a.lastSeenAt || 0)
-    );
+    return Object.values(this.state.phones)
+      .sort((a, b) => (b.lastSeenAt || 0) - (a.lastSeenAt || 0))
+      .map((p) => {
+        const owned = this.state.jobs.filter((j) => j.phoneId === p.id);
+        const done = owned.filter((j) => j.status === "done").length;
+        const failed = owned.filter((j) => j.status === "failed").length;
+        const finished = done + failed;
+        const active =
+          p.activeJobId &&
+          this.getJob(p.activeJobId)?.status === "leased"
+            ? this.getJob(p.activeJobId)
+            : owned.find((j) => j.status === "leased") || null;
+        return {
+          ...p,
+          jobsDone: p.jobsDone || done,
+          jobsFailed: failed,
+          successRate:
+            finished > 0 ? Math.round((done / finished) * 100) : null,
+          countries: Array.isArray(p.countries) ? p.countries : [],
+          activeJob: active
+            ? {
+                id: active.id,
+                name: active.name,
+                url: active.url,
+                percent:
+                  typeof active.percent === "number" ? active.percent : 0,
+                stage: active.stage || "working",
+                progress: active.progress || null,
+                country: active.country || null,
+              }
+            : null,
+        };
+      });
   }
 
   reapExpired() {
