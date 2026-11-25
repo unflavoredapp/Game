@@ -1,0 +1,19 @@
+{
+  "appId": "app.signalloft.game",
+  "appName": "Signal Loft",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "preferredContentMode": "mobile",
+    "backgroundColor": "#0c0a09"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "backgroundColor": "#0c0a09"
+    }
+  }
+}

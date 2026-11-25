@@ -1,0 +1,79 @@
+name: Build Unsigned IPA
+
+on:
+  push:
+    branches: [main, "cursor/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ios-unsigned:
+    name: Unsigned iOS IPA
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install JS deps
+        run: npm ci
+
+      - name: Build web bundle
+        run: npm run build
+
+      - name: Add / sync Capacitor iOS
+        run: |
+          if [ ! -d ios ]; then
+            npx cap add ios
+          fi
+          npx cap sync ios
+
+      - name: Install CocoaPods
+        working-directory: ios/App
+        run: pod install
+
+      - name: Build app without code signing
+        working-directory: ios/App
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            build
+
+      - name: Package unsigned IPA
+        working-directory: ios/App
+        run: |
+          set -euo pipefail
+          APP_PATH=$(find DerivedData/Build/Products -name "*.app" -path "*Release-iphoneos*" | head -n 1)
+          echo "Found app: $APP_PATH"
+          rm -rf Payload SignalLoft-unsigned.ipa
+          mkdir Payload
+          cp -R "$APP_PATH" Payload/
+          zip -r SignalLoft-unsigned.ipa Payload
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          mv SignalLoft-unsigned.ipa "$GITHUB_WORKSPACE/dist/SignalLoft-unsigned.ipa"
+          ls -lh "$GITHUB_WORKSPACE/dist"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SignalLoft-unsigned-ipa
+          path: dist/SignalLoft-unsigned.ipa
+          if-no-files-found: error
