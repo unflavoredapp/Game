@@ -2,7 +2,7 @@
 
 A coordinated network for **app decryption jobs**. No wallets, tokens, or on-chain trust — shared secrets, leases, and capability routing.
 
-Canonical site: **https://decrypt.software**  
+Canonical site: **https://getipa.fast**  
 Version: `0.0`  
 Base path: `/v0`  
 Transport: HTTPS + JSON (artifact bodies are raw bytes)
@@ -83,7 +83,7 @@ Missing or wrong token → `401` with `{ "error": "unauthorized" }`.
 
 ### `GET /v0/health`
 
-No auth. Returns `{ "ok": true, "protocol": "decrypt-web", "version": "0.0", "site": "decrypt.software" }`.
+No auth. Returns `{ "ok": true, "protocol": "decrypt-web", "version": "0.0", "site": "getipa.fast" }`.
 
 ### `POST /v0/jobs`
 
@@ -191,7 +191,7 @@ Response: `{ "ok": true, "job": Job }`.
 ## 6. Relationship to DELvEKBot
 
 DELvEKBot on **delvek.bot** (our domain) speaks `/api/decrypt/worker/*` on its own VPS panel.  
-Decrypt Web on **decrypt.software** speaks `/v0/node/*` with richer objects.
+Decrypt Web on **getipa.fast** speaks `/v0/node/*` with richer objects.
 
 Same problem space; separate deployments. Keep concepts aligned when either side evolves. An optional shape bridge is fine for sync — not a requirement to merge the stacks.
 

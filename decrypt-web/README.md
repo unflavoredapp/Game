@@ -1,10 +1,10 @@
 # Decrypt Web
 
-**Site:** [decrypt.software](https://decrypt.software)
+**Site:** [getipa.fast](https://getipa.fast)
 
 A **decryption network** with a versioned HTTP protocol. Nodes claim jobs, decrypt apps, and return artifacts through a relay. No wallets, tokens, or chains — shared secrets and leases.
 
-Built for **decrypt.software** — a separate domain that backpedaled on adopting DELvEKBot and running that VPS stack. We stay conceptually synced with [`../DELvEKBot/`](../DELvEKBot/) (same decrypt-job ideas; our production host remains [delvek.bot](https://delvek.bot/)), but this track is its own protocol + toolchain.
+Built for **getipa.fast** — a separate domain that backpedaled on adopting DELvEKBot and running that VPS stack. We stay conceptually synced with [`../DELvEKBot/`](../DELvEKBot/) (same decrypt-job ideas; our production host remains [delvek.bot](https://delvek.bot/)), but this track is its own protocol + toolchain.
 
 | Piece | Path |
 |-------|------|
@@ -23,10 +23,10 @@ npm start
 ```
 
 Local health: `GET http://127.0.0.1:3040/v0/health`  
-Production base: `https://decrypt.software`
+Production base: `https://getipa.fast`
 
 ```sh
-BASE=https://decrypt.software   # or http://127.0.0.1:3040 for local
+BASE=https://getipa.fast   # or http://127.0.0.1:3040 for local
 
 # enqueue
 curl -s -X POST "$BASE/v0/jobs" \
@@ -52,4 +52,4 @@ curl -s -X POST "$BASE/v0/node/claim" \
 - **Nodes are capacity** — countries + backends for routing, never for auth.
 - **Relay is coordinator** — queue, lease, artifact store, operator API.
 - **Toolchain over time** — CLI, panel, and node kits land as Decrypt Web v0.1+ (see ROADMAP).
-- **Synced, not merged** — delvek.bot / DELvEKBot stays ours; decrypt.software is the other path.
+- **Synced, not merged** — delvek.bot / DELvEKBot stays ours; getipa.fast is the other path.

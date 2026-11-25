@@ -3,11 +3,11 @@ info:
   title: Decrypt Web Protocol
   version: "0.0"
   description: |
-    Coordinated decryption job network for decrypt.software.
+    Coordinated decryption job network for getipa.fast.
     No crypto ledgers — shared-secret auth, leases, and capability routing.
 servers:
-  - url: https://decrypt.software
-    description: Production (decrypt.software)
+  - url: https://getipa.fast
+    description: Production (getipa.fast)
   - url: http://127.0.0.1:3040
     description: Local reference relay
 paths:

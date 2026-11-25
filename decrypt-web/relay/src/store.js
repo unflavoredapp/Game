@@ -72,7 +72,7 @@ export class Store {
       ok: true,
       protocol: "decrypt-web",
       version: "0.0",
-      site: "decrypt.software",
+      site: "getipa.fast",
     };
   }
 

@@ -1,9 +1,9 @@
 # Decrypt Web roadmap
 
-Site: **decrypt.software**
+Site: **getipa.fast**
 
 Crypto stays out. Growth is protocol → toolchain for that domain.  
-DELvEKBot / **delvek.bot** stays our stack; we keep ideas in sync without forcing them onto decrypt.software’s VPS.
+DELvEKBot / **delvek.bot** stays our stack; we keep ideas in sync without forcing them onto getipa.fast’s VPS.
 
 ## Now — Protocol foundation
 
@@ -43,4 +43,4 @@ Optional later: a thin shape bridge if anyone wants DELvEKBot-style `/api/decryp
 
 - Tokens, NFTs, wallets, on-chain settlement
 - Replacing or sunsetting DELvEKBot / delvek.bot
-- Requiring decrypt.software to run our VPS/panel install
+- Requiring getipa.fast to run our VPS/panel install
