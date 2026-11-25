@@ -48,7 +48,7 @@ bash delvekbot-worker.sh
 
 Phone scripts always elevate with **`sudo -E`** (buddy3 / appstorectl need root). You can still type plain `bash …`; sudo is applied for you.
 
-Job flow on the phone: resolve URL → **`appstoredl` install** (signed-in App Store account) → **`buddy3` decrypt** → upload to VPS → Telegram.
+Job flow on the phone: resolve URL → **`appstoredl` install** (signed-in App Store account) → **`buddy3` decrypt** → upload to VPS → Telegram → **delete local IPA after 5 minutes** (`IPA_KEEP_SECONDS=300`).
 
 ### Multiple countries / Apple IDs (one phone)
 
