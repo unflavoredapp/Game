@@ -5,7 +5,7 @@ Two related tracks, kept **in sync** for different operators:
 | Track | Domain | Who it’s for | Path |
 |-------|--------|----------------|------|
 | **DELvEKBot** | [delvek.bot](https://delvek.bot/) | Our side — audited phone worker + VPS panel (Telegram delivery). Stays as-is. | [`DELvEKBot/`](DELvEKBot/) |
-| **Decrypt Web** | [getipa.fast](https://getipa.fast) | Other side — stepped back from DELvEKBot + that VPS; protocol + toolchain instead. | [`decrypt-web/`](decrypt-web/) |
+| **Decrypt Web** | [getipa.fast](https://getipa.fast) | Other side — live relay + site: queue App Store URLs, demo node returns IPAs. | [`decrypt-web/`](decrypt-web/) |
 
 Same problem space (decrypt jobs, nodes, delivery). Different deployments. No crypto ledgers on either side.
 

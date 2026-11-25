@@ -16,12 +16,12 @@ DELvEKBot / **delvek.bot** stays our stack; we keep ideas in sync without forcin
 
 Minimum tools so that domain can operate without adopting DELvEKBot’s panel/install:
 
-| Tool | Purpose |
-|------|---------|
-| `dw` CLI | `jobs submit`, `jobs list`, `nodes list`, `artifact get` |
-| Node kit | Reference worker client against `/v0/node/*` (their phones/backends) |
-| Operator panel | Minimal dashboard (queue, nodes, progress) on the same API |
-| Delivery hook | Optional Telegram/webhook on `done` / `failed` (config, not protocol) |
+| Tool | Purpose | Status |
+|------|---------|--------|
+| Site + operator console | Brand landing + queue/download on the relay | Done (demo node) |
+| `dw` CLI | `jobs submit`, `jobs list`, `nodes list`, `artifact get` | Next |
+| Node kit | Reference worker client against `/v0/node/*` (their phones/backends) | Next |
+| Delivery hook | Optional Telegram/webhook on `done` / `failed` (config, not protocol) | Later |
 
 Optional later: a thin shape bridge if anyone wants DELvEKBot-style `/api/decrypt/worker/*` talk to a Decrypt Web relay — sync aid, not a migration mandate.
 

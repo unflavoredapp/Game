@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>getipa.fast</title>
+    <meta name="description" content="Get IPAs fast — Decrypt Web jobs on getipa.fast" />
+    <link rel="icon" href="/icon.jpg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="atmosphere" aria-hidden="true"></div>
+
+    <header class="top">
+      <a class="brand" href="/">
+        <img src="/icon.jpg" alt="" width="36" height="36" />
+        <span>getipa.fast</span>
+      </a>
+      <a class="top-link" href="#get">Get an IPA</a>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Decrypt Web · live relay</p>
+          <h1 class="brand-hero">getipa.<em>fast</em></h1>
+          <p class="lede">
+            Drop an App Store link. Nodes claim it, decrypt it, and hand back the IPA.
+          </p>
+          <div class="cta-row">
+            <a class="btn primary" href="#get">Get an IPA</a>
+            <a class="btn ghost" href="/v0/health" target="_blank" rel="noreferrer">Protocol health</a>
+          </div>
+        </div>
+        <div class="hero-visual">
+          <img class="hero-icon" src="/icon.jpg" alt="getipa.fast icon" />
+        </div>
+      </section>
+
+      <section class="get" id="get">
+        <h2>Get an IPA</h2>
+        <p class="section-lede">
+          Operator console on this relay. Demo node is on by default so jobs finish without a phone.
+        </p>
+
+        <form id="job-form" class="get-form" autocomplete="off">
+          <label>
+            <span>Operator token</span>
+            <input
+              id="operator-token"
+              name="token"
+              type="password"
+              placeholder="OPERATOR_TOKEN"
+              required
+            />
+          </label>
+          <label class="grow">
+            <span>App Store URL</span>
+            <input
+              id="app-url"
+              name="url"
+              type="url"
+              placeholder="https://apps.apple.com/us/app/…/id…"
+              required
+            />
+          </label>
+          <label class="country">
+            <span>Country</span>
+            <input id="country" name="country" maxlength="2" value="us" required />
+          </label>
+          <button class="btn primary" type="submit">Queue job</button>
+        </form>
+        <p id="form-status" class="status" role="status"></p>
+
+        <div class="jobs-head">
+          <h3>Jobs</h3>
+          <button type="button" class="btn ghost tiny" id="refresh-jobs">Refresh</button>
+        </div>
+        <div id="jobs" class="jobs" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <span>getipa.fast</span>
+      <span class="sep">·</span>
+      <a href="/v0/health">/v0/health</a>
+    </footer>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

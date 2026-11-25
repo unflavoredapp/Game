@@ -1,5 +1,10 @@
 import express from "express";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Store } from "./store.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const publicDir = path.join(__dirname, "..", "public");
 
 function timingSafeEqualStr(a, b) {
   const x = Buffer.from(String(a || ""));
@@ -144,6 +149,8 @@ export function createApp(opts) {
       }
     }
   );
+
+  app.use(express.static(publicDir));
 
   return app;
 }
