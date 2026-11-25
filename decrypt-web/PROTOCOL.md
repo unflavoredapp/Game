@@ -187,9 +187,12 @@ Response: `{ "ok": true, "job": Job }`.
 
 ---
 
-## 6. Compatibility with DELvEKBot
+## 6. Relationship to DELvEKBot
 
-Legacy phone workers use `/api/decrypt/worker/*`. Decrypt Web v0 uses `/v0/node/*` and richer objects. A future adapter may bridge shapes; new work targets this protocol.
+DELvEKBot (our domain) speaks `/api/decrypt/worker/*` on its own VPS panel.  
+Decrypt Web (other domain) speaks `/v0/node/*` with richer objects.
+
+Same problem space; separate deployments. Keep concepts aligned when either side evolves. An optional shape bridge is fine for sync — not a requirement to merge the stacks.
 
 ---
 
