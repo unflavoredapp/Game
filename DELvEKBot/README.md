@@ -34,13 +34,18 @@ pm2 restart delvekbot
 ```sh
 DECRYPT_SITE_URL=https://delvek.bot/
 DECRYPT_WORKER_TOKEN=<from /etc/delvekbot.env>
-BUDDY3_BIN=/var/mobile/Documents/buddy3
+BUDDY3_BIN=/var/jb/usr/local/bin/buddy3
 BUDDY3_OUT_DIR=/var/mobile/Documents
+# appstoredl is auto-detected beside buddy3 (App Store install before decrypt)
+SKIP_FETCH=0
+FETCH_WAIT_SECONDS=8
 ```
 
 ```sh
 bash delvekbot-worker.sh
 ```
+
+Job flow on the phone: resolve URL → **`appstoredl` install** (signed-in App Store account) → **`buddy3` decrypt** → upload to VPS → Telegram.
 
 ## Telegram
 

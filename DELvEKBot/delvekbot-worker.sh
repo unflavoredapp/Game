@@ -24,6 +24,9 @@
 #   CURL_CONNECT_TIMEOUT=15
 #   CURL_MAX_TIME=60
 #   UPLOAD_MAX_TIME=1800
+#   APPSTOREDL_BIN=/path/to/appstoredl   # auto-detected next to buddy3
+#   SKIP_FETCH=0                         # set 1 to skip App Store install
+#   FETCH_WAIT_SECONDS=8                 # pause after appstoredl before buddy3
 #
 # Notes:
 # - jq is required for reliable JSON parsing.
@@ -55,8 +58,21 @@ COUNTRY="${COUNTRY:-us}"
 CURL_CONNECT_TIMEOUT="${CURL_CONNECT_TIMEOUT:-15}"
 CURL_MAX_TIME="${CURL_MAX_TIME:-60}"
 UPLOAD_MAX_TIME="${UPLOAD_MAX_TIME:-1800}"
+SKIP_FETCH="${SKIP_FETCH:-0}"
+FETCH_WAIT_SECONDS="${FETCH_WAIT_SECONDS:-8}"
 LOCK_FILE="${DELVEKBOT_LOCK_FILE:-${DOCS}/.delvekbot-worker.lock}"
 LOCK_DIR="${DELVEKBOT_LOCK_DIR:-${DOCS}/.delvekbot-worker.lockdir}"
+
+# Prefer explicit APPSTOREDL_BIN; else same directory as buddy3; else PATH.
+if [[ -z "${APPSTOREDL_BIN:-}" ]]; then
+  if [[ -x "$(dirname "$BUDDY3_BIN")/appstoredl" ]]; then
+    APPSTOREDL_BIN="$(dirname "$BUDDY3_BIN")/appstoredl"
+  elif command -v appstoredl >/dev/null 2>&1; then
+    APPSTOREDL_BIN="$(command -v appstoredl)"
+  else
+    APPSTOREDL_BIN=""
+  fi
+fi
 
 BASE=""
 CURRENT_JOB_ID=""
@@ -200,9 +216,13 @@ urlencode() {
   jq -rn --arg v "$1" '$v|@uri'
 }
 
+extract_adam_id() {
+  printf '%s' "$1" | sed -nE 's/.*\/id([0-9]{5,12})([^0-9].*)?$/\1/p' | head -1
+}
+
 itunes_lookup() {
   local store_url="$1" app_id body
-  app_id="$(printf '%s' "$store_url" | sed -nE 's/.*\/id([0-9]{5,12})([^0-9].*)?$/\1/p' | head -1)"
+  app_id="$(extract_adam_id "$store_url")"
   [[ -n "$app_id" ]] || return 1
 
   body="$(curl -fsSL \
@@ -211,9 +231,43 @@ itunes_lookup() {
     "https://itunes.apple.com/lookup?id=${app_id}&country=${COUNTRY}" 2>/dev/null)" || return 1
 
   local result
+  # bundleId, trackName, adamId
   result="$(printf '%s' "$body" | jq -er \
-    '.results[0] | select(.bundleId and .trackName) | [.bundleId,.trackName] | @tsv' 2>/dev/null)" || return 1
+    --arg adam "$app_id" \
+    '.results[0] | select(.bundleId and .trackName) | [.bundleId,.trackName,$adam] | @tsv' 2>/dev/null)" || return 1
   printf '%s\n' "$result"
+}
+
+# Install/redownload via on-device App Store account (appstoredl), then buddy3 can decrypt.
+ensure_app_installed() {
+  local bid="$1" adam="$2"
+  if [[ "$SKIP_FETCH" == "1" ]]; then
+    log "SKIP_FETCH=1 · not calling appstoredl"
+    return 0
+  fi
+  if [[ -z "$APPSTOREDL_BIN" || ! -x "$APPSTOREDL_BIN" ]]; then
+    log "appstoredl not found; buddy3 will only work if ${bid} is already installed"
+    return 0
+  fi
+
+  log "fetching ${bid} via appstoredl"
+  set +e
+  "${APPSTOREDL_BIN}" "$bid"
+  local rc=$?
+  if [[ "$rc" -ne 0 && -n "$adam" ]]; then
+    log "appstoredl bundle-id failed (rc=${rc}); retrying with adam id ${adam}"
+    "${APPSTOREDL_BIN}" "$adam"
+    rc=$?
+  fi
+  set -e
+  if [[ "$rc" -ne 0 ]]; then
+    return "$rc"
+  fi
+  if [[ "$FETCH_WAIT_SECONDS" =~ ^[0-9]+$ ]] && ((FETCH_WAIT_SECONDS > 0)); then
+    log "waiting ${FETCH_WAIT_SECONDS}s for install to settle"
+    sleep "$FETCH_WAIT_SECONDS"
+  fi
+  return 0
 }
 
 find_fresh_buddy_ipa() {
@@ -283,14 +337,17 @@ handle_job() {
   log "claimed ${id}"
   progress "$id" "DELvEKBot · resolving App Store listing"
 
-  local lookup bid name
+  local lookup bid name adam rest
   lookup="$(itunes_lookup "$url")" || {
     fail_job "$id" "Could not resolve a bundle ID from the App Store URL."
     CURRENT_JOB_ID=""
     return 0
   }
   bid="${lookup%%$'\t'*}"
-  name="${lookup#*$'\t'}"
+  rest="${lookup#*$'\t'}"
+  name="${rest%%$'\t'*}"
+  adam="${rest#*$'\t'}"
+  [[ "$adam" == "$rest" ]] && adam="$(extract_adam_id "$url")"
   [[ -n "$bid" ]] || {
     fail_job "$id" "App Store lookup returned no bundle ID."
     CURRENT_JOB_ID=""
@@ -298,7 +355,22 @@ handle_job() {
   }
   [[ -n "$name" ]] || name="$bid"
 
-  progress "$id" "DELvEKBot · resolved ${bid}; starting buddy3"
+  progress "$id" "DELvEKBot · resolved ${bid}; ensuring App Store install"
+
+  start_heartbeat "$id"
+
+  set +e
+  ensure_app_installed "$bid" "$adam"
+  local fetch_rc=$?
+  set -e
+  if [[ "$fetch_rc" -ne 0 ]]; then
+    stop_heartbeat
+    fail_job "$id" "appstoredl failed for ${bid} (is the App Store account signed in on this phone?)."
+    CURRENT_JOB_ID=""
+    return 0
+  fi
+
+  progress "$id" "DELvEKBot · starting buddy3 for ${bid}"
 
   # Subtract 1s so same-second mtimes on coarse filesystems still qualify.
   local started_epoch
@@ -307,8 +379,6 @@ handle_job() {
   [[ "${BUDDY3_VERBOSE:-0}" == "1" ]] && args+=(-v)
   args+=("$bid")
 
-  start_heartbeat "$id"
-
   set +e
   "${BUDDY3_BIN}" "${args[@]}"
   local rc=$?
@@ -316,7 +386,7 @@ handle_job() {
 
   if [[ "$rc" -ne 0 ]]; then
     stop_heartbeat
-    fail_job "$id" "buddy3 exited with status ${rc} for ${bid}."
+    fail_job "$id" "buddy3 exited with status ${rc} for ${bid} (app missing or not decryptable)."
     CURRENT_JOB_ID=""
     return 0
   fi
@@ -377,6 +447,11 @@ main() {
 
   log "site=${BASE} · buddy3=${BUDDY3_BIN}"
   log "poll=${POLL_SECONDS}s · heartbeat=${HEARTBEAT_SECONDS}s · output=${DOCS}"
+  if [[ -n "$APPSTOREDL_BIN" ]]; then
+    log "appstoredl=${APPSTOREDL_BIN} · skip_fetch=${SKIP_FETCH}"
+  else
+    log "appstoredl=not found · fetch disabled until installed beside buddy3"
+  fi
 
   while true; do
     local resp id url fields
