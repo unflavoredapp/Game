@@ -68,7 +68,12 @@ export class Store {
   }
 
   health() {
-    return { ok: true, protocol: "decrypt-web", version: "0.0" };
+    return {
+      ok: true,
+      protocol: "decrypt-web",
+      version: "0.0",
+      site: "decrypt.software",
+    };
   }
 
   enqueue(url, country = "us", constraints = {}) {

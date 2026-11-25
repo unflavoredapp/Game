@@ -2,10 +2,10 @@
 
 Two related tracks, kept **in sync** for different operators:
 
-| Track | Who it’s for | Path |
-|-------|----------------|------|
-| **DELvEKBot** | Our domain — audited phone worker + VPS panel (Telegram delivery). Stays as-is. | [`DELvEKBot/`](DELvEKBot/) |
-| **Decrypt Web** | Other domain that stepped back from DELvEKBot + their VPS — protocol + toolchain instead of adopting that stack. | [`decrypt-web/`](decrypt-web/) |
+| Track | Domain | Who it’s for | Path |
+|-------|--------|----------------|------|
+| **DELvEKBot** | [delvek.bot](https://delvek.bot/) | Our side — audited phone worker + VPS panel (Telegram delivery). Stays as-is. | [`DELvEKBot/`](DELvEKBot/) |
+| **Decrypt Web** | [decrypt.software](https://decrypt.software) | Other side — stepped back from DELvEKBot + that VPS; protocol + toolchain instead. | [`decrypt-web/`](decrypt-web/) |
 
 Same problem space (decrypt jobs, nodes, delivery). Different deployments. No crypto ledgers on either side.
 

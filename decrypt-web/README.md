@@ -1,8 +1,10 @@
 # Decrypt Web
 
+**Site:** [decrypt.software](https://decrypt.software)
+
 A **decryption network** with a versioned HTTP protocol. Nodes claim jobs, decrypt apps, and return artifacts through a relay. No wallets, tokens, or chains — shared secrets and leases.
 
-Built for a **separate domain** that backpedaled on adopting DELvEKBot and running that VPS stack. We stay conceptually synced with [`../DELvEKBot/`](../DELvEKBot/) (same decrypt-job ideas), but this track is its own protocol + toolchain — not a replacement for DELvEKBot on our side.
+Built for **decrypt.software** — a separate domain that backpedaled on adopting DELvEKBot and running that VPS stack. We stay conceptually synced with [`../DELvEKBot/`](../DELvEKBot/) (same decrypt-job ideas; our production host remains [delvek.bot](https://delvek.bot/)), but this track is its own protocol + toolchain.
 
 | Piece | Path |
 |-------|------|
@@ -20,22 +22,25 @@ npm install
 npm start
 ```
 
-Health: `GET http://127.0.0.1:3040/v0/health`
+Local health: `GET http://127.0.0.1:3040/v0/health`  
+Production base: `https://decrypt.software`
 
 ```sh
+BASE=https://decrypt.software   # or http://127.0.0.1:3040 for local
+
 # enqueue
-curl -s -X POST http://127.0.0.1:3040/v0/jobs \
+curl -s -X POST "$BASE/v0/jobs" \
   -H "X-Decrypt-Operator-Token: $OPERATOR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"url":"https://apps.apple.com/us/app/id123","country":"us"}'
 
 # node hello + claim
-curl -s -X POST http://127.0.0.1:3040/v0/node/hello \
+curl -s -X POST "$BASE/v0/node/hello" \
   -H "X-Decrypt-Node-Token: $NODE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"id":"dev-1","countries":["us"],"capabilities":{"backends":["buddy3"]}}'
 
-curl -s -X POST http://127.0.0.1:3040/v0/node/claim \
+curl -s -X POST "$BASE/v0/node/claim" \
   -H "X-Decrypt-Node-Token: $NODE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"id":"dev-1","countries":["us"]}'
@@ -47,4 +52,4 @@ curl -s -X POST http://127.0.0.1:3040/v0/node/claim \
 - **Nodes are capacity** — countries + backends for routing, never for auth.
 - **Relay is coordinator** — queue, lease, artifact store, operator API.
 - **Toolchain over time** — CLI, panel, and node kits land as Decrypt Web v0.1+ (see ROADMAP).
-- **Synced, not merged** — DELvEKBot remains our VPS/phone product; Decrypt Web is the other domain’s path.
+- **Synced, not merged** — delvek.bot / DELvEKBot stays ours; decrypt.software is the other path.

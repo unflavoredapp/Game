@@ -56,6 +56,7 @@ describe("Decrypt Web protocol v0", () => {
     const body = await res.json();
     assert.equal(body.protocol, "decrypt-web");
     assert.equal(body.version, "0.0");
+    assert.equal(body.site, "decrypt.software");
   });
 
   it("rejects missing operator token", async () => {

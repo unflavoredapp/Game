@@ -3,10 +3,13 @@ info:
   title: Decrypt Web Protocol
   version: "0.0"
   description: |
-    Coordinated decryption job network. No crypto ledgers — shared-secret auth,
-    leases, and capability routing.
+    Coordinated decryption job network for decrypt.software.
+    No crypto ledgers — shared-secret auth, leases, and capability routing.
 servers:
-  - url: /
+  - url: https://decrypt.software
+    description: Production (decrypt.software)
+  - url: http://127.0.0.1:3040
+    description: Local reference relay
 paths:
   /v0/health:
     get:

@@ -1,7 +1,9 @@
 # Decrypt Web roadmap
 
-Crypto stays out. Growth is protocol → toolchain for the **other domain**.  
-DELvEKBot stays our stack; we keep ideas in sync without forcing them onto Decrypt Web’s VPS.
+Site: **decrypt.software**
+
+Crypto stays out. Growth is protocol → toolchain for that domain.  
+DELvEKBot / **delvek.bot** stays our stack; we keep ideas in sync without forcing them onto decrypt.software’s VPS.
 
 ## Now — Protocol foundation
 
@@ -40,5 +42,5 @@ Optional later: a thin shape bridge if anyone wants DELvEKBot-style `/api/decryp
 ## Non-goals
 
 - Tokens, NFTs, wallets, on-chain settlement
-- Replacing or sunsetting DELvEKBot on our domain
-- Requiring the other domain to run our VPS/panel install
+- Replacing or sunsetting DELvEKBot / delvek.bot
+- Requiring decrypt.software to run our VPS/panel install
