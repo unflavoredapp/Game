@@ -4,7 +4,8 @@
 # A phone-side worker for jobs queued by your DELvEKBot/Tetherless-compatible
 # server. This script does not implement the server queue or Telegram bot.
 #
-# Required tools: bash, curl, jq, flock, sed, date, find, stat
+# Required tools: bash, curl, jq, sed, date, find, stat
+# Optional: flock (falls back to mkdir lock on Dopamine/Procursus)
 #
 # Configure:
 #   export DECRYPT_SITE_URL=https://your-server.example/
@@ -55,13 +56,36 @@ CURL_CONNECT_TIMEOUT="${CURL_CONNECT_TIMEOUT:-15}"
 CURL_MAX_TIME="${CURL_MAX_TIME:-60}"
 UPLOAD_MAX_TIME="${UPLOAD_MAX_TIME:-1800}"
 LOCK_FILE="${DELVEKBOT_LOCK_FILE:-${DOCS}/.delvekbot-worker.lock}"
+LOCK_DIR="${DELVEKBOT_LOCK_DIR:-${DOCS}/.delvekbot-worker.lockdir}"
 
 BASE=""
 CURRENT_JOB_ID=""
 HEARTBEAT_PID=""
+LOCK_MODE=""
 
 log() { printf 'DELvEKBot: %s\n' "$*" >&2; }
 die() { log "ERROR: $*"; exit 1; }
+
+acquire_lock() {
+  # Prefer flock when available; otherwise atomic mkdir (works without util-linux).
+  if command -v flock >/dev/null 2>&1; then
+    exec 9>"$LOCK_FILE"
+    flock -n 9 || die "another DELvEKBot worker is already running (lock: ${LOCK_FILE})"
+    LOCK_MODE="flock"
+    return 0
+  fi
+  if mkdir "$LOCK_DIR" 2>/dev/null; then
+    LOCK_MODE="mkdir"
+    return 0
+  fi
+  die "another DELvEKBot worker is already running (lock: ${LOCK_DIR})"
+}
+
+release_lock() {
+  if [[ "$LOCK_MODE" == "mkdir" ]]; then
+    rmdir "$LOCK_DIR" 2>/dev/null || true
+  fi
+}
 
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing command: $1"
@@ -318,6 +342,7 @@ handle_job() {
 
 cleanup() {
   stop_heartbeat
+  release_lock
   if [[ -n "${CURRENT_JOB_ID}" ]]; then
     log "worker stopped while job ${CURRENT_JOB_ID} was active; server lease/recovery policy applies"
   fi
@@ -331,7 +356,6 @@ trap 'exit 143' TERM
 main() {
   need_cmd curl
   need_cmd jq
-  need_cmd flock
   need_cmd find
   need_cmd stat
   need_cmd date
@@ -348,9 +372,8 @@ main() {
   BASE="$(normalize_base "$SITE_URL")" || die "invalid DECRYPT_SITE_URL"
   COUNTRY="$(printf '%s' "$COUNTRY" | tr '[:upper:]' '[:lower:]')"
 
-  # Non-blocking process lock: only one worker may use this output directory.
-  exec 9>"$LOCK_FILE"
-  flock -n 9 || die "another DELvEKBot worker is already running (lock: ${LOCK_FILE})"
+  # Single-worker lock (flock if present, else mkdir).
+  acquire_lock
 
   log "site=${BASE} · buddy3=${BUDDY3_BIN}"
   log "poll=${POLL_SECONDS}s · heartbeat=${HEARTBEAT_SECONDS}s · output=${DOCS}"
