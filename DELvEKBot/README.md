@@ -1,77 +1,60 @@
-# DELvEKBot — Dopamine / buddy3 phone worker
+# DELvEKBot — phone worker + VPS queue API
 
-Phone-side polling/decryption/upload worker for a DELvEKBot-compatible decrypt
-queue. This package does **not** include the VPS server, Telegram bot, or DB.
+- **Phone:** `delvekbot-worker.sh` (buddy3 decrypt + upload)
+- **VPS:** `server/` FastAPI queue at `https://delvek.bot/`
 
-## Included
+## VPS install (Debian + Apache)
 
-- `delvekbot-worker.sh` — phone-side worker
-- `.env.example` — configuration template (copy to `.env` beside the script)
-- `SERVER-CONTRACT.md` — API assumptions and server-side work still needed
-- `tests/test-claim-parse.sh` — regression tests for claim JSON parsing
+On the server as root:
 
-## Audit fixes (vs. submitted package)
+```sh
+curl -fsSL https://raw.githubusercontent.com/unflavoredapp/Game/main/DELvEKBot/server/install-vps.sh -o /tmp/install-vps.sh
+# Or after cloning:
+git clone https://github.com/unflavoredapp/Game.git /opt/delvekbot
+bash /opt/delvekbot/DELvEKBot/server/install-vps.sh
+```
 
-1. **Critical claim idle bug:** `jq`'s `.job == null` is true when `job` is
-   *missing*, so top-level `{id,url}` claims were treated as idle and never
-   run. Parsing now requires an explicit `job: null` for idle, and accepts
-   both top-level and nested `{job:{id,url}}` active shapes.
-2. **Signal handling:** `INT`/`TERM` now exit so the worker actually stops
-   (EXIT trap still runs cleanup once).
-3. **Upload lease:** heartbeat progress continues through IPA upload, not only
-   during buddy3.
-4. **Query encoding:** both `id` and `name` are URI-encoded on complete.
-5. **Country validation:** `COUNTRY` must be a 2-letter storefront code.
-6. **Env loading:** optional `.env` next to the script is auto-sourced.
-7. **Fresh IPA window:** start timestamp is `now - 1s` to tolerate 1-second
-   filesystem mtime resolution.
-8. **`sed` check:** required dependency is validated at startup.
+That will:
 
-## Earlier hardening retained
+1. Install the API under `/opt/delvekbot`
+2. Write tokens to `/etc/delvekbot.env`
+3. Start `delvekbot-api` on `127.0.0.1:8080`
+4. Proxy `/api/` and `/health` through Apache
 
-- Fresh-output IPA selection (mtime ≥ buddy3 start)
-- `jq` for JSON parse/escape
-- `flock` single-worker lock per output directory
-- Completion response verification
-- Restrictive umask, curl timeouts, cleanup on exit
+Enqueue a job (from any machine with the admin token):
 
-## Install
+```sh
+source /etc/delvekbot.env
+curl -fsS -X POST https://delvek.bot/api/decrypt/admin/enqueue \
+  -H "X-Delvekbot-Admin-Token: ${DELVEKBOT_ADMIN_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://apps.apple.com/us/app/example/id123456789"}'
+```
 
-On a jailbroken iPhone (Dopamine / Procursus-style bootstrap), install:
-
-- `curl`
-- `jq`
-- `util-linux` (for `flock`)
-
-Copy `delvekbot-worker.sh` to the phone:
+## Phone worker
 
 ```sh
 chmod 700 delvekbot-worker.sh
-cp .env.example .env   # then edit tokens/paths
+cp .env.example .env
+# Set DECRYPT_SITE_URL=https://delvek.bot/
+# Set DECRYPT_WORKER_TOKEN to the value from /etc/delvekbot.env on the VPS
 bash delvekbot-worker.sh
 ```
 
-Do not put the worker token in a public repository, screenshots, or shared logs.
-Use HTTPS and a unique, revocable token for each worker.
+Needs on-device: `curl`, `jq`, `flock` (`util-linux`), and `buddy3`.
+
+## Layout
+
+| Path | Role |
+|------|------|
+| `delvekbot-worker.sh` | iPhone poll/decrypt/upload client |
+| `server/app.py` | Queue API (claim/progress/fail/complete) |
+| `server/install-vps.sh` | Debian install + Apache proxy |
+| `SERVER-CONTRACT.md` | HTTP contract |
+| `tests/test-claim-parse.sh` | Claim JSON regression tests |
 
 ## Tests
 
 ```sh
 bash DELvEKBot/tests/test-claim-parse.sh
 ```
-
-## Compatibility notes
-
-- Claim idle: `{ "job": null }`. Claim active: top-level or nested string
-  `id` + `url` (see `SERVER-CONTRACT.md`).
-- Completion must return a JSON object. The worker rejects invalid JSON and
-  explicit `ok:false`, `success:false`, or `error` fields.
-- Progress posts only renew leases if the server extends `lease_expires_at`.
-- Crash recovery requires server-side lease expiry/requeue.
-- Use only apps and accounts you are authorized to access.
-
-## Operational recommendation
-
-Give every phone its own revocable `DECRYPT_WORKER_TOKEN`. Keep a server-side
-worker record (last-seen, online state, iOS/jailbreak, storage, capabilities)
-keyed by that token and route only compatible jobs.
