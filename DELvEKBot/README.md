@@ -47,6 +47,19 @@ bash delvekbot-worker.sh
 
 Job flow on the phone: resolve URL → **`appstoredl` install** (signed-in App Store account) → **`buddy3` decrypt** → upload to VPS → Telegram.
 
+### Multiple countries / Apple IDs
+
+`appstoredl` uses whatever Apple ID is signed into the App Store **on that phone**.
+Use **one phone per storefront**:
+
+| Phone | Apple ID storefront | `COUNTRY` | `DELVEKBOT_PHONE` |
+|-------|---------------------|-----------|-------------------|
+| Device A | United States | `us` | `iphone-us-01` |
+| Device B | India | `in` | `iphone-india-01` |
+
+Queue jobs with matching country (`in` for `apps.apple.com/in/...`). The VPS only
+gives a job to a worker whose `COUNTRY` matches.
+
 ## Telegram
 
 1. Talk to `@BotFather` → create bot → copy token  
