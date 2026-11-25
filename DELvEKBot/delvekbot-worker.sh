@@ -218,12 +218,27 @@ is_idle_claim() {
   return 0
 }
 
+# Optional 3rd/4th args: percent (0-99) and stage label for the dashboard bar.
+CURRENT_PROGRESS_PCT=0
+CURRENT_PROGRESS_STAGE="idle"
+
 progress() {
-  local id="$1" msg="$2"
+  local id="$1" msg="$2" pct="${3:-}" stage="${4:-}"
   # Progress is intentionally best-effort; a transient update failure should
   # not kill a running decrypt. Server-side lease extension is server behavior.
   local payload
-  payload="$(jq -cn --arg id "$id" --arg msg "$msg" '{id:$id,msg:$msg}')"
+  if [[ -n "$pct" && "$pct" =~ ^[0-9]+$ ]]; then
+    CURRENT_PROGRESS_PCT="$pct"
+  fi
+  if [[ -n "$stage" ]]; then
+    CURRENT_PROGRESS_STAGE="$stage"
+  fi
+  payload="$(jq -cn \
+    --arg id "$id" \
+    --arg msg "$msg" \
+    --arg stage "$CURRENT_PROGRESS_STAGE" \
+    --argjson percent "${CURRENT_PROGRESS_PCT:-0}" \
+    '{id:$id,msg:$msg,percent:$percent,stage:$stage}')"
   api POST "api/decrypt/worker/progress" -d "$payload" >/dev/null || true
 }
 
@@ -237,7 +252,7 @@ fail_job() {
 heartbeat_loop() {
   local id="$1"
   while sleep "$HEARTBEAT_SECONDS"; do
-    progress "$id" "DELvEKBot · worker active; decryption still running"
+    progress "$id" "DELvEKBot · worker active; ${CURRENT_PROGRESS_STAGE} still running (${CURRENT_PROGRESS_PCT}%)"
   done
 }
 
@@ -525,7 +540,9 @@ handle_job() {
   job_country="$(printf '%s' "$job_country" | tr '[:upper:]' '[:lower:]')"
   [[ "$job_country" =~ ^[a-z]{2}$ ]] || job_country="$COUNTRY"
   log "claimed ${id} · country=${job_country}"
-  progress "$id" "DELvEKBot · resolving App Store listing (${job_country})"
+  CURRENT_PROGRESS_PCT=0
+  CURRENT_PROGRESS_STAGE="resolve"
+  progress "$id" "DELvEKBot · resolving App Store listing (${job_country})" 10 "resolve"
 
   local lookup bid name adam rest
   lookup="$(itunes_lookup "$url" "$job_country")" || {
@@ -545,7 +562,7 @@ handle_job() {
   }
   [[ -n "$name" ]] || name="$bid"
 
-  progress "$id" "DELvEKBot · resolved ${bid}; switching Apple ID / installing"
+  progress "$id" "DELvEKBot · resolved ${bid}; switching Apple ID / installing" 30 "install"
 
   start_heartbeat "$id"
 
@@ -560,7 +577,7 @@ handle_job() {
     return 0
   fi
 
-  progress "$id" "DELvEKBot · starting buddy3 for ${bid}"
+  progress "$id" "DELvEKBot · starting buddy3 for ${bid}" 55 "decrypt"
 
   # Snapshot matching IPAs before buddy3. buddy3 often writes "<bundleId>.ipa"
   # and may preserve package mtimes, so we detect new/changed size rather than
@@ -601,9 +618,11 @@ handle_job() {
   rm -f "$snap"
 
   # Keep the lease heartbeat alive through potentially long uploads.
-  progress "$id" "DELvEKBot · uploading $(basename "$ipa")"
+  progress "$id" "DELvEKBot · uploading $(basename "$ipa")" 80 "upload"
   if upload_ipa "$id" "$ipa" "$name"; then
     log "upload completed for ${name} (${bid})"
+    CURRENT_PROGRESS_PCT=100
+    CURRENT_PROGRESS_STAGE="complete"
     schedule_ipa_delete "$ipa"
   else
     fail_job "$id" "IPA upload failed or the server returned an invalid completion response."
