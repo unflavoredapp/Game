@@ -47,18 +47,26 @@ bash delvekbot-worker.sh
 
 Job flow on the phone: resolve URL → **`appstoredl` install** (signed-in App Store account) → **`buddy3` decrypt** → upload to VPS → Telegram.
 
-### Multiple countries / Apple IDs
+### Multiple countries / Apple IDs (one phone)
 
-`appstoredl` uses whatever Apple ID is signed into the App Store **on that phone**.
-Use **one phone per storefront**:
+You can keep **several Apple IDs on one jailbroken phone**. Login + 2FA once per
+account, then the worker switches storefront before each fetch.
 
-| Phone | Apple ID storefront | `COUNTRY` | `DELVEKBOT_PHONE` |
-|-------|---------------------|-----------|-------------------|
-| Device A | United States | `us` | `iphone-us-01` |
-| Device B | India | `in` | `iphone-india-01` |
+```sh
+cd DELvEKBot/phone
+cp accounts.example.json accounts.json   # edit Apple IDs
+mkdir -p passwords && chmod 700 passwords
+# put each password in passwords/us.pass, passwords/in.pass (chmod 600)
+bash bootstrap-accounts.sh               # interactive; complete 2FA once each
+```
 
-Queue jobs with matching country (`in` for `apps.apple.com/in/...`). The VPS only
-gives a job to a worker whose `COUNTRY` matches.
+Requires [`appstorectl`](https://github.com/appknox/appstorectl) on the phone.
+Optional: `authpref free never` (set during bootstrap) to avoid Face ID on free apps.
+
+Worker then claims any job whose country is listed in `accounts.json` / `COUNTRIES`,
+runs `switch-storefront.sh <country>`, installs via `appstorectl`/`appstoredl`, then `buddy3`.
+
+**Still supported:** one phone per country with a single signed-in Apple ID (`COUNTRY=in`).
 
 ## Telegram
 

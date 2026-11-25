@@ -27,8 +27,10 @@
 #   APPSTOREDL_BIN=/path/to/appstoredl   # auto-detected next to buddy3
 #   SKIP_FETCH=0                         # set 1 to skip App Store install
 #   FETCH_WAIT_SECONDS=8                 # pause after appstoredl before buddy3
-#   DELVEKBOT_PHONE=iphone-india-01      # unique name per device
-#   COUNTRY=in                           # must match Apple ID storefront on that phone
+#   DELVEKBOT_PHONE=iphone-multi-01
+#   COUNTRY=us                           # default / fallback storefront
+#   COUNTRIES=us,in                      # or auto from phone/accounts.json
+#   DELVEKBOT_PHONE_DIR=.../DELvEKBot/phone
 #
 # Notes:
 # - jq is required for reliable JSON parsing.
@@ -58,10 +60,14 @@ POLL_SECONDS="${POLL_SECONDS:-3}"
 HEARTBEAT_SECONDS="${HEARTBEAT_SECONDS:-30}"
 COUNTRY="${COUNTRY:-us}"
 PHONE_ID="${DELVEKBOT_PHONE:-${DECRYPT_WORKER_PHONE:-default-phone}}"
+PHONE_DIR="${DELVEKBOT_PHONE_DIR:-${_SCRIPT_DIR}/phone}"
+SWITCH_SCRIPT="${DELVEKBOT_SWITCH_SCRIPT:-$PHONE_DIR/switch-storefront.sh}"
+ACCOUNTS_JSON="${DELVEKBOT_ACCOUNTS:-$PHONE_DIR/accounts.json}"
 CURL_CONNECT_TIMEOUT="${CURL_CONNECT_TIMEOUT:-15}"
 CURL_MAX_TIME="${CURL_MAX_TIME:-60}"
 UPLOAD_MAX_TIME="${UPLOAD_MAX_TIME:-1800}"
 SKIP_FETCH="${SKIP_FETCH:-0}"
+SKIP_ACCOUNT_SWITCH="${SKIP_ACCOUNT_SWITCH:-0}"
 FETCH_WAIT_SECONDS="${FETCH_WAIT_SECONDS:-8}"
 LOCK_FILE="${DELVEKBOT_LOCK_FILE:-${DOCS}/.delvekbot-worker.lock}"
 LOCK_DIR="${DELVEKBOT_LOCK_DIR:-${DOCS}/.delvekbot-worker.lockdir}"
@@ -76,6 +82,14 @@ if [[ -z "${APPSTOREDL_BIN:-}" ]]; then
     APPSTOREDL_BIN=""
   fi
 fi
+
+# COUNTRIES: explicit env, else keys from accounts.json, else single COUNTRY.
+if [[ -z "${COUNTRIES:-}" ]]; then
+  if [[ -f "$ACCOUNTS_JSON" ]] && command -v jq >/dev/null 2>&1; then
+    COUNTRIES="$(jq -r 'keys|join(",")' "$ACCOUNTS_JSON" 2>/dev/null || true)"
+  fi
+fi
+COUNTRIES="${COUNTRIES:-$COUNTRY}"
 
 BASE=""
 CURRENT_JOB_ID=""
@@ -226,14 +240,15 @@ extract_adam_id() {
 }
 
 itunes_lookup() {
-  local store_url="$1" app_id body
+  local store_url="$1" storefront="${2:-$COUNTRY}" app_id body
   app_id="$(extract_adam_id "$store_url")"
   [[ -n "$app_id" ]] || return 1
+  storefront="$(printf '%s' "$storefront" | tr '[:upper:]' '[:lower:]')"
 
   body="$(curl -fsSL \
     --connect-timeout "$CURL_CONNECT_TIMEOUT" \
     --max-time 30 \
-    "https://itunes.apple.com/lookup?id=${app_id}&country=${COUNTRY}" 2>/dev/null)" || return 1
+    "https://itunes.apple.com/lookup?id=${app_id}&country=${storefront}" 2>/dev/null)" || return 1
 
   local result
   # bundleId, trackName, adamId
@@ -243,13 +258,48 @@ itunes_lookup() {
   printf '%s\n' "$result"
 }
 
-# Install/redownload via on-device App Store account (appstoredl), then buddy3 can decrypt.
-ensure_app_installed() {
-  local bid="$1" adam="$2"
-  if [[ "$SKIP_FETCH" == "1" ]]; then
-    log "SKIP_FETCH=1 · not calling appstoredl"
+switch_storefront_account() {
+  local storefront="$1"
+  if [[ "$SKIP_ACCOUNT_SWITCH" == "1" ]]; then
+    log "SKIP_ACCOUNT_SWITCH=1 · leaving current App Store account"
     return 0
   fi
+  if [[ ! -x "$SWITCH_SCRIPT" ]]; then
+    log "switch-storefront.sh not found (${SWITCH_SCRIPT}); using current App Store login"
+    return 0
+  fi
+  log "switching Apple ID for storefront ${storefront}"
+  "$SWITCH_SCRIPT" "$storefront"
+}
+
+# Install/redownload via on-device App Store account, then buddy3 can decrypt.
+ensure_app_installed() {
+  local bid="$1" adam="$2" storefront="${3:-$COUNTRY}"
+  if [[ "$SKIP_FETCH" == "1" ]]; then
+    log "SKIP_FETCH=1 · not calling appstoredl/appstorectl"
+    return 0
+  fi
+
+  switch_storefront_account "$storefront" || return $?
+
+  # Prefer appstorectl install when available (same CLI used for account switch).
+  if command -v appstorectl >/dev/null 2>&1; then
+    log "fetching ${bid} via appstorectl install (--no-export)"
+    set +e
+    if [[ -n "$adam" ]]; then
+      appstorectl install "$bid" --adam "$adam" --no-export
+    else
+      appstorectl install "$bid" --no-export
+    fi
+    local rc=$?
+    set -e
+    if [[ "$rc" -eq 0 ]]; then
+      [[ "$FETCH_WAIT_SECONDS" =~ ^[0-9]+$ ]] && ((FETCH_WAIT_SECONDS > 0)) && sleep "$FETCH_WAIT_SECONDS"
+      return 0
+    fi
+    log "appstorectl install failed (rc=${rc}); trying appstoredl"
+  fi
+
   if [[ -z "$APPSTOREDL_BIN" || ! -x "$APPSTOREDL_BIN" ]]; then
     log "appstoredl not found; buddy3 will only work if ${bid} is already installed"
     return 0
@@ -337,13 +387,15 @@ upload_ipa() {
 }
 
 handle_job() {
-  local id="$1" url="$2"
+  local id="$1" url="$2" job_country="${3:-$COUNTRY}"
   CURRENT_JOB_ID="$id"
-  log "claimed ${id}"
-  progress "$id" "DELvEKBot · resolving App Store listing"
+  job_country="$(printf '%s' "$job_country" | tr '[:upper:]' '[:lower:]')"
+  [[ "$job_country" =~ ^[a-z]{2}$ ]] || job_country="$COUNTRY"
+  log "claimed ${id} · country=${job_country}"
+  progress "$id" "DELvEKBot · resolving App Store listing (${job_country})"
 
   local lookup bid name adam rest
-  lookup="$(itunes_lookup "$url")" || {
+  lookup="$(itunes_lookup "$url" "$job_country")" || {
     fail_job "$id" "Could not resolve a bundle ID from the App Store URL."
     CURRENT_JOB_ID=""
     return 0
@@ -360,17 +412,17 @@ handle_job() {
   }
   [[ -n "$name" ]] || name="$bid"
 
-  progress "$id" "DELvEKBot · resolved ${bid}; ensuring App Store install"
+  progress "$id" "DELvEKBot · resolved ${bid}; switching Apple ID / installing"
 
   start_heartbeat "$id"
 
   set +e
-  ensure_app_installed "$bid" "$adam"
+  ensure_app_installed "$bid" "$adam" "$job_country"
   local fetch_rc=$?
   set -e
   if [[ "$fetch_rc" -ne 0 ]]; then
     stop_heartbeat
-    fail_job "$id" "appstoredl failed for ${bid} (is the App Store account signed in on this phone?)."
+    fail_job "$id" "App Store fetch failed for ${bid} (${job_country}). Run phone/bootstrap-accounts.sh once, or check appstorectl/appstoredl."
     CURRENT_JOB_ID=""
     return 0
   fi
@@ -442,26 +494,30 @@ main() {
   [[ -d "$DOCS" ]] || die "output directory does not exist: ${DOCS}"
   [[ "$POLL_SECONDS" =~ ^[0-9]+$ ]] && ((POLL_SECONDS >= 1)) || die "POLL_SECONDS must be a positive integer"
   [[ "$HEARTBEAT_SECONDS" =~ ^[0-9]+$ ]] && ((HEARTBEAT_SECONDS >= 5)) || die "HEARTBEAT_SECONDS must be >= 5"
-  [[ "$COUNTRY" =~ ^[a-zA-Z]{2}$ ]] || die "COUNTRY must be a 2-letter storefront code"
+  COUNTRY="$(printf '%s' "$COUNTRY" | tr '[:upper:]' '[:lower:]')"
+  COUNTRIES="$(printf '%s' "$COUNTRIES" | tr '[:upper:]' '[:lower:]' | tr -d ' ')"
+  [[ "$COUNTRY" =~ ^[a-z]{2}$ ]] || die "COUNTRY must be a 2-letter storefront code"
 
   BASE="$(normalize_base "$SITE_URL")" || die "invalid DECRYPT_SITE_URL"
-  COUNTRY="$(printf '%s' "$COUNTRY" | tr '[:upper:]' '[:lower:]')"
 
   # Single-worker lock (flock if present, else mkdir).
   acquire_lock
 
   log "site=${BASE} · buddy3=${BUDDY3_BIN}"
-  log "phone=${PHONE_ID} · country=${COUNTRY} · poll=${POLL_SECONDS}s · output=${DOCS}"
+  log "phone=${PHONE_ID} · countries=${COUNTRIES} · poll=${POLL_SECONDS}s · output=${DOCS}"
+  log "accounts=${ACCOUNTS_JSON} · switch=$([[ -x $SWITCH_SCRIPT ]] && echo yes || echo no)"
   if [[ -n "$APPSTOREDL_BIN" ]]; then
     log "appstoredl=${APPSTOREDL_BIN} · skip_fetch=${SKIP_FETCH}"
   else
-    log "appstoredl=not found · fetch disabled until installed beside buddy3"
+    log "appstoredl=not found · will prefer appstorectl install when present"
   fi
 
   while true; do
-    local resp id url fields claim_body
-    claim_body="$(jq -cn --arg country "$COUNTRY" --arg phone "$PHONE_ID" \
-      '{country:$country,phoneId:$phone}')"
+    local resp id url fields claim_body job_country
+    claim_body="$(jq -cn --arg phone "$PHONE_ID" --arg countries "$COUNTRIES" '
+      ($countries | split(",") | map(select(length==2))) as $c
+      | {phoneId:$phone, country:($c[0] // "us"), countries:$c}
+    ')"
     if ! resp="$(api POST "api/decrypt/worker/claim" \
         -d "$claim_body" 2>/dev/null)"; then
       log "claim request failed; retrying in ${POLL_SECONDS}s"
@@ -487,8 +543,10 @@ main() {
     }
     id="$(printf '%s' "$fields" | jq -er '.id')"
     url="$(printf '%s' "$fields" | jq -er '.url')"
+    job_country="$(printf '%s' "$resp" | jq -er '.country | select(type=="string")' 2>/dev/null || true)"
+    [[ -n "$job_country" ]] || job_country="$COUNTRY"
 
-    handle_job "$id" "$url"
+    handle_job "$id" "$url" "$job_country"
     sleep 1
   done
 }

@@ -113,16 +113,18 @@ class Store {
     if (changed) this.save();
   }
 
-  claim(phoneId, leaseMs, country = "") {
+  claim(phoneId, leaseMs, countries = []) {
     this.reapExpired();
-    const want = String(country || "").toLowerCase().slice(0, 2);
+    const allowed = (Array.isArray(countries) ? countries : [countries])
+      .map((c) => String(c || "").toLowerCase().slice(0, 2))
+      .filter((c) => c.length === 2);
     const job = this.state.jobs
       .filter((j) => j.status === "queued")
       .filter((j) => {
         const jc = String(j.country || "us").toLowerCase().slice(0, 2);
-        // Worker only receives jobs for its storefront country.
-        if (!want) return true;
-        return jc === want;
+        // Empty allowed list = legacy single-country / accept any.
+        if (!allowed.length) return true;
+        return allowed.includes(jc);
       })
       .sort((a, b) => a.createdAt - b.createdAt)[0];
     if (!job) return null;
@@ -134,7 +136,8 @@ class Store {
     this.touchPhone(job.phoneId, {
       status: "busy",
       activeJobId: job.id,
-      country: want || job.country || null,
+      countries: allowed,
+      country: job.country || null,
     });
     this.save();
     return job;
