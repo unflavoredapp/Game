@@ -9,17 +9,15 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Manrope:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="atmosphere" aria-hidden="true"></div>
-
     <header class="top">
       <a class="brand" href="/">
-        <img src="/icon.jpg" alt="" width="36" height="36" />
+        <img src="/icon.jpg" alt="" width="32" height="32" />
         <span>getipa.fast</span>
       </a>
       <a class="top-link" href="#get">Get an IPA</a>
@@ -27,27 +25,31 @@
 
     <main>
       <section class="hero">
+        <div class="hero-bleed" aria-hidden="true">
+          <img src="/icon.jpg" alt="" class="hero-bleed-img" />
+          <div class="hero-bleed-shade"></div>
+        </div>
+
         <div class="hero-copy">
-          <p class="eyebrow">Decrypt Web · live relay</p>
-          <h1 class="brand-hero">getipa.<em>fast</em></h1>
-          <p class="lede">
-            Drop an App Store link. Nodes claim it, decrypt it, and hand back the IPA.
-          </p>
+          <h1 class="brand-hero">
+            <span class="brand-line">getipa</span><span class="brand-dot">.</span
+            ><span class="brand-fast">fast</span>
+          </h1>
+          <p class="lede">App Store link in. IPA out. Nodes do the rest.</p>
           <div class="cta-row">
             <a class="btn primary" href="#get">Get an IPA</a>
-            <a class="btn ghost" href="/v0/health" target="_blank" rel="noreferrer">Protocol health</a>
+            <a class="btn ghost" href="/v0/health" target="_blank" rel="noreferrer">Health</a>
           </div>
-        </div>
-        <div class="hero-visual">
-          <img class="hero-icon" src="/icon.jpg" alt="getipa.fast icon" />
         </div>
       </section>
 
       <section class="get" id="get">
-        <h2>Get an IPA</h2>
-        <p class="section-lede">
-          Operator console on this relay. Demo node is on by default so jobs finish without a phone.
-        </p>
+        <div class="get-intro">
+          <h2>Get an IPA</h2>
+          <p class="section-lede">
+            Queue a link on this relay. Demo node finishes jobs when no phone is attached.
+          </p>
+        </div>
 
         <form id="job-form" class="get-form" autocomplete="off">
           <label>
@@ -60,27 +62,29 @@
               required
             />
           </label>
-          <label class="grow">
-            <span>App Store URL</span>
-            <input
-              id="app-url"
-              name="url"
-              type="url"
-              placeholder="https://apps.apple.com/us/app/…/id…"
-              required
-            />
-          </label>
-          <label class="country">
-            <span>Country</span>
-            <input id="country" name="country" maxlength="2" value="us" required />
-          </label>
-          <button class="btn primary" type="submit">Queue job</button>
+          <div class="row-url">
+            <label class="grow">
+              <span>App Store URL</span>
+              <input
+                id="app-url"
+                name="url"
+                type="url"
+                placeholder="https://apps.apple.com/…/id…"
+                required
+              />
+            </label>
+            <label class="country">
+              <span>CC</span>
+              <input id="country" name="country" maxlength="2" value="us" required />
+            </label>
+          </div>
+          <button class="btn primary wide" type="submit">Queue job</button>
         </form>
         <p id="form-status" class="status" role="status"></p>
 
         <div class="jobs-head">
           <h3>Jobs</h3>
-          <button type="button" class="btn ghost tiny" id="refresh-jobs">Refresh</button>
+          <button type="button" class="text-btn" id="refresh-jobs">Refresh</button>
         </div>
         <div id="jobs" class="jobs" aria-live="polite"></div>
       </section>
