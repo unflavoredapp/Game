@@ -82,11 +82,51 @@ body {
   .span-4, .span-6, .span-8, .span-12 { grid-column: span 12; }
 }
 
+/* Top meta: always four squares side-by-side (never stacked). */
+.meta-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+
+.meta-square {
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  padding: 14px 12px;
+  min-width: 0;
+}
+
+.meta-square small {
+  display: block;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.65rem;
+  color: var(--muted);
+  font-weight: 400;
+  margin-top: 4px;
+  line-height: 1.3;
+}
+
+.meta-square .meta-sub {
+  margin-top: 10px;
+  font-size: 1.15rem;
+}
+
+@media (max-width: 720px) {
+  .meta-row { gap: 8px; }
+  .meta-square { padding: 12px 8px; }
+  .meta-square .stat { font-size: 1.15rem; }
+  .meta-square .meta-sub { font-size: 0.95rem; }
+  .meta-square small { font-size: 0.58rem; }
+}
+
 .stat {
   font-family: Syne, sans-serif;
   font-size: 1.8rem;
   font-weight: 700;
   letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
 }
 .stat small {
   display: block;

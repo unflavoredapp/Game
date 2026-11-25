@@ -255,12 +255,25 @@ function renderDashboard() {
     <h1 class="brand">DELvEKBot</h1>
     <p class="tagline">Phone → VPS → Telegram. Queue jobs, watch workers, and track transfer speeds.</p>
 
-    <div class="grid" id="stats">
-      <div class="panel span-4"><div class="stat" id="s-queued">—</div><small>queued</small></div>
-      <div class="panel span-4"><div class="stat" id="s-leased">—</div><small>in progress</small></div>
-      <div class="panel span-4"><div class="stat" id="s-done">—</div><small>done</small></div>
-      <div class="panel span-6"><div class="stat speed" id="s-up">—</div><small>avg phone → VPS</small></div>
-      <div class="panel span-6"><div class="stat speed" id="s-tg">—</div><small>avg VPS → Telegram</small></div>
+    <div class="meta-row" id="stats">
+      <div class="meta-square">
+        <div class="stat" id="s-queued">—</div>
+        <small>queued</small>
+      </div>
+      <div class="meta-square">
+        <div class="stat" id="s-leased">—</div>
+        <small>in progress</small>
+      </div>
+      <div class="meta-square">
+        <div class="stat" id="s-done">—</div>
+        <small>done</small>
+      </div>
+      <div class="meta-square">
+        <div class="stat speed" id="s-up">—</div>
+        <small>phone → VPS</small>
+        <div class="stat speed meta-sub" id="s-tg">—</div>
+        <small>VPS → Telegram</small>
+      </div>
     </div>
 
     <div class="grid" style="margin-top:16px">
@@ -319,11 +332,11 @@ function renderDashboard() {
       const res = await fetch("/api/admin/stats?token=" + encodeURIComponent(TOKEN), { headers });
       if (!res.ok) throw new Error("stats " + res.status);
       const data = await res.json();
-      document.getElementById("s-queued").innerHTML = data.counts.queued + "<small>queued</small>";
-      document.getElementById("s-leased").innerHTML = data.counts.leased + "<small>in progress</small>";
-      document.getElementById("s-done").innerHTML = data.counts.done + "<small>done</small>";
-      document.getElementById("s-up").innerHTML = mbps(data.avgMbps.phoneToVps) + "<small>avg phone → VPS</small>";
-      document.getElementById("s-tg").innerHTML = mbps(data.avgMbps.vpsToTelegram) + "<small>avg VPS → Telegram</small>";
+      document.getElementById("s-queued").textContent = data.counts.queued;
+      document.getElementById("s-leased").textContent = data.counts.leased;
+      document.getElementById("s-done").textContent = data.counts.done;
+      document.getElementById("s-up").textContent = mbps(data.avgMbps.phoneToVps);
+      document.getElementById("s-tg").textContent = mbps(data.avgMbps.vpsToTelegram);
 
       const phones = data.phones || [];
       document.getElementById("phones").innerHTML = phones.length
