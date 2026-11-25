@@ -1,0 +1,10 @@
+{
+  "us": {
+    "appleId": "us-account@example.com",
+    "passwordFile": "passwords/us.pass"
+  },
+  "in": {
+    "appleId": "india-account@example.com",
+    "passwordFile": "passwords/in.pass"
+  }
+}

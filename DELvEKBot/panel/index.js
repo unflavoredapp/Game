@@ -166,11 +166,14 @@ app.get("/api/decrypt/admin/jobs", adminAuth, (_req, res) => {
 
 app.post("/api/decrypt/worker/claim", workerAuth, (req, res) => {
   const phone = phoneIdFromReq(req);
-  const country = normalizeCountry(
-    req.body?.country || req.get("X-Delvekbot-Country") || "us"
-  );
-  store.touchPhone(phone, { status: "online", country });
-  const job = store.claim(phone, LEASE_MS, country);
+  let countries = req.body?.countries;
+  if (!Array.isArray(countries) || !countries.length) {
+    const single = req.body?.country || req.get("X-Delvekbot-Country") || "us";
+    countries = [single];
+  }
+  countries = countries.map((c) => normalizeCountry(c, "us"));
+  store.touchPhone(phone, { status: "online", countries, country: countries[0] });
+  const job = store.claim(phone, LEASE_MS, countries);
   if (!job) return res.json({ job: null });
   return res.json({ id: job.id, url: job.url, country: job.country });
 });
