@@ -2,7 +2,17 @@
 # One-time interactive login for every Apple ID in accounts.json.
 # Complete 2FA when prompted. After this, switch-storefront.sh can reuse
 # sessions with --no-bootstrap (no Face ID / 2FA on each job).
+# Always re-execs under sudo on iPhone (appstorectl needs root).
 set -Eeuo pipefail
+
+if [[ "$(id -u 2>/dev/null || echo 1)" -ne 0 && "${DELVEKBOT_NO_SUDO:-0}" != "1" ]]; then
+  command -v sudo >/dev/null 2>&1 || {
+    echo "DELvEKBot: need sudo (or run as root)" >&2
+    exit 1
+  }
+  echo "DELvEKBot: re-executing under sudo -E" >&2
+  exec sudo -E -- "$0" "$@"
+fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ACCOUNTS="${DELVEKBOT_ACCOUNTS:-$ROOT/accounts.json}"

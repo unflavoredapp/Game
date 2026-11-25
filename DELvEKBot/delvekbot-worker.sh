@@ -13,6 +13,7 @@
 #   export BUDDY3_BIN=/var/mobile/Documents/buddy3
 #   export BUDDY3_OUT_DIR=/var/mobile/Documents
 #   bash delvekbot-worker.sh
+#   # (auto re-execs under sudo on iPhone — buddy3 / appstorectl need root)
 #
 # Or copy .env.example to .env next to this script (auto-loaded).
 #
@@ -31,14 +32,18 @@
 #   COUNTRY=us                           # default / fallback storefront
 #   COUNTRIES=us,in                      # or auto from phone/accounts.json
 #   DELVEKBOT_PHONE_DIR=.../DELvEKBot/phone
+#   DELVEKBOT_NO_SUDO=1                  # skip sudo re-exec (tests only)
 #
 # Notes:
+# - Always runs as root on the phone (re-execs via sudo -E unless already root).
 # - jq is required for reliable JSON parsing.
 # - The worker uses the existing /progress endpoint for heartbeat messages.
 #   The server must extend the job lease on progress calls if you want those
 #   calls to act as lease heartbeats. See README.md.
-# - Output freshness is checked against the time immediately before buddy3
-#   starts, preventing accidental upload of a stale IPA from an earlier job.
+# - buddy3 output is matched by bundle id: <bundleId>.ipa (typical),
+#   <bundleId>_decrypted.ipa, or <bundleId>*.ipa — not the App Store display name.
+# - Discovery prefers IPAs that appeared or changed size since buddy3 started,
+#   because buddy3 often preserves package mtimes on the written .ipa.
 
 set -Eeuo pipefail
 umask 077
@@ -122,6 +127,23 @@ release_lock() {
 
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing command: $1"
+}
+
+# buddy3 / appstorectl / appstoredl need root on Dopamine. Re-exec under sudo
+# while preserving env (tokens, paths) via -E. Set DELVEKBOT_NO_SUDO=1 to skip.
+ensure_root_via_sudo() {
+  local uid
+  uid="$(id -u 2>/dev/null || echo 1)"
+  if [[ "$uid" -eq 0 ]]; then
+    return 0
+  fi
+  if [[ "${DELVEKBOT_NO_SUDO:-0}" == "1" ]]; then
+    log "DELVEKBOT_NO_SUDO=1 · continuing as uid=${uid} (not for production)"
+    return 0
+  fi
+  need_cmd sudo
+  log "not root (uid=${uid}) · re-executing under sudo -E"
+  exec sudo -E -- "$0" "$@"
 }
 
 normalize_base() {
@@ -325,37 +347,117 @@ ensure_app_installed() {
   return 0
 }
 
+# buddy3 usually writes "<bundleId>.ipa" (not AppName_decrypted.ipa).
+# Also accept "<bundleId>_decrypted.ipa" and any "<bundleId>*.ipa".
+ipa_name_matches_bid() {
+  local bid="$1" base="$2"
+  [[ "$base" == "${bid}.ipa" \
+    || "$base" == "${bid}_decrypted.ipa" \
+    || "$base" == "${bid}"*.ipa ]]
+}
+
+file_mtime_epoch() {
+  # Darwin/iOS: stat -f '%m' · GNU: stat -c '%Y'
+  local out
+  out="$(stat -f '%m' "$1" 2>/dev/null || true)"
+  if [[ "$out" =~ ^[0-9]+$ ]]; then
+    printf '%s\n' "$out"
+    return 0
+  fi
+  out="$(stat -c '%Y' "$1" 2>/dev/null || true)"
+  if [[ "$out" =~ ^[0-9]+$ ]]; then
+    printf '%s\n' "$out"
+    return 0
+  fi
+  printf '0\n'
+}
+
+file_size_bytes() {
+  local out
+  out="$(wc -c < "$1" 2>/dev/null | tr -d '[:space:]')"
+  [[ "$out" =~ ^[0-9]+$ ]] || out=0
+  printf '%s\n' "$out"
+}
+
+# Write "path<TAB>size" lines for every matching IPA currently under DOCS.
+# Uses a temp find list (no process substitution) for Dopamine bash compatibility.
+snapshot_matching_ipas() {
+  local bid="$1" out="$2"
+  local f base tmp
+  : > "$out"
+  tmp="$(mktemp "${TMPDIR:-/tmp}/delvekbot-find.XXXXXX")"
+  find "$DOCS" -maxdepth 2 -type f -name '*.ipa' 2>/dev/null | LC_ALL=C sort > "$tmp" || true
+  while IFS= read -r f; do
+    [[ -n "$f" && -f "$f" ]] || continue
+    base="$(basename "$f")"
+    ipa_name_matches_bid "$bid" "$base" || continue
+    printf '%s\t%s\n' "$f" "$(file_size_bytes "$f")"
+  done < "$tmp" >> "$out"
+  rm -f "$tmp"
+}
+
+# Prefer IPAs that appeared or changed size since the pre-buddy3 snapshot.
+# buddy3 often preserves package mtimes, so a pure mtime "freshness" check
+# falsely rejects a brand-new "<bundleId>.ipa" (e.g. com.audiomack.iphone.ipa).
 find_fresh_buddy_ipa() {
-  local bid="$1" started_epoch="$2"
-  local candidate
-  local -a candidates=()
+  local bid="$1" snap="$2"
+  local started_epoch="${3:-0}"
+  local f base size old mtime
+  local newest="" newest_mtime=0
+  local newest_changed="" newest_changed_mtime=0
+  local tmp
+  tmp="$(mktemp "${TMPDIR:-/tmp}/delvekbot-ipas.XXXXXX")"
+  find "$DOCS" -maxdepth 2 -type f -name '*.ipa' 2>/dev/null | LC_ALL=C sort > "$tmp" || true
 
-  # Search only the configured output directory, and only files newer than
-  # the pre-run timestamp. NUL delimiters protect spaces in filenames.
-  while IFS= read -r -d '' candidate; do
-    [[ -s "$candidate" ]] || continue
-    local mtime
-    mtime="$(stat -f '%m' "$candidate" 2>/dev/null || stat -c '%Y' "$candidate" 2>/dev/null || echo 0)"
-    if [[ "$mtime" -ge "$started_epoch" ]]; then
-      candidates+=("$candidate")
+  while IFS= read -r f; do
+    [[ -n "$f" && -s "$f" ]] || continue
+    base="$(basename "$f")"
+    ipa_name_matches_bid "$bid" "$base" || continue
+
+    size="$(file_size_bytes "$f")"
+    old="$(awk -F '\t' -v p="$f" '$1 == p { print $2; exit }' "$snap" 2>/dev/null || true)"
+    mtime="$(file_mtime_epoch "$f")"
+
+    if [[ -z "$old" || "$old" != "$size" ]]; then
+      if [[ "$mtime" -ge "$newest_changed_mtime" ]]; then
+        newest_changed="$f"
+        newest_changed_mtime="$mtime"
+      fi
     fi
-  done < <(find "$DOCS" -maxdepth 2 -type f \
-      \( -name "${bid}.ipa" -o -name "${bid}_decrypted.ipa" -o -name "${bid}"'*.ipa' \) \
-      -print0 2>/dev/null)
 
-  ((${#candidates[@]} > 0)) || return 1
+    # Also track mtime-fresh matches (covers tools that rewrite in place
+    # without a size change, when the filesystem updates mtime).
+    if [[ "$started_epoch" =~ ^[0-9]+$ ]] && (( started_epoch > 0 )) \
+      && [[ "$mtime" -ge "$started_epoch" ]]; then
+      if [[ "$mtime" -ge "$newest_changed_mtime" ]]; then
+        newest_changed="$f"
+        newest_changed_mtime="$mtime"
+      fi
+    fi
 
-  # Select newest matching fresh output.
-  local newest="" newest_mtime=0 mtime
-  for candidate in "${candidates[@]}"; do
-    mtime="$(stat -f '%m' "$candidate" 2>/dev/null || stat -c '%Y' "$candidate" 2>/dev/null || echo 0)"
     if [[ "$mtime" -ge "$newest_mtime" ]]; then
-      newest="$candidate"
+      newest="$f"
       newest_mtime="$mtime"
     fi
-  done
-  [[ -n "$newest" ]] || return 1
-  printf '%s\n' "$newest"
+  done < "$tmp"
+  rm -f "$tmp"
+
+  if [[ -n "$newest_changed" ]]; then
+    log "selected IPA $(basename "$newest_changed") (new or size-changed since buddy3 start)"
+    printf '%s\n' "$newest_changed"
+    return 0
+  fi
+
+  # Last resort after a successful buddy3 exit: newest name match.
+  # Safer than failing when buddy3 stamped an old mtime onto a real output.
+  if [[ -n "$newest" ]]; then
+    log "no size/mtime-fresh IPA for ${bid}; using newest match $(basename "$newest")"
+    printf '%s\n' "$newest"
+    return 0
+  fi
+
+  log "no IPA matching ${bid}.ipa / ${bid}_decrypted.ipa / ${bid}*.ipa under ${DOCS}"
+  return 1
 }
 
 upload_ipa() {
@@ -429,9 +531,14 @@ handle_job() {
 
   progress "$id" "DELvEKBot · starting buddy3 for ${bid}"
 
-  # Subtract 1s so same-second mtimes on coarse filesystems still qualify.
-  local started_epoch
+  # Snapshot matching IPAs before buddy3. buddy3 often writes "<bundleId>.ipa"
+  # and may preserve package mtimes, so we detect new/changed size rather than
+  # relying only on mtime freshness.
+  local started_epoch snap
   started_epoch="$(( $(date +%s) - 1 ))"
+  snap="$(mktemp "${TMPDIR:-/tmp}/delvekbot-snap.XXXXXX")"
+  snapshot_matching_ipas "$bid" "$snap"
+
   local -a args=()
   [[ "${BUDDY3_VERBOSE:-0}" == "1" ]] && args+=(-v)
   args+=("$bid")
@@ -442,19 +549,25 @@ handle_job() {
   set -e
 
   if [[ "$rc" -ne 0 ]]; then
+    rm -f "$snap"
     stop_heartbeat
     fail_job "$id" "buddy3 exited with status ${rc} for ${bid} (app missing or not decryptable)."
     CURRENT_JOB_ID=""
     return 0
   fi
 
+  # Brief settle in case buddy3 closes the file slightly after exit.
+  sleep 1
+
   local ipa
-  ipa="$(find_fresh_buddy_ipa "$bid" "$started_epoch")" || {
+  ipa="$(find_fresh_buddy_ipa "$bid" "$snap" "$started_epoch")" || {
+    rm -f "$snap"
     stop_heartbeat
-    fail_job "$id" "buddy3 finished, but no fresh matching IPA was found under ${DOCS}."
+    fail_job "$id" "buddy3 finished, but no matching IPA (${bid}.ipa) was found under ${DOCS}."
     CURRENT_JOB_ID=""
     return 0
   }
+  rm -f "$snap"
 
   # Keep the lease heartbeat alive through potentially long uploads.
   progress "$id" "DELvEKBot · uploading $(basename "$ipa")"
@@ -481,6 +594,8 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 main() {
+  ensure_root_via_sudo "$@"
+
   need_cmd curl
   need_cmd jq
   need_cmd find
@@ -503,7 +618,7 @@ main() {
   # Single-worker lock (flock if present, else mkdir).
   acquire_lock
 
-  log "site=${BASE} · buddy3=${BUDDY3_BIN}"
+  log "uid=$(id -u) · site=${BASE} · buddy3=${BUDDY3_BIN}"
   log "phone=${PHONE_ID} · countries=${COUNTRIES} · poll=${POLL_SECONDS}s · output=${DOCS}"
   log "accounts=${ACCOUNTS_JSON} · switch=$([[ -x $SWITCH_SCRIPT ]] && echo yes || echo no)"
   if [[ -n "$APPSTOREDL_BIN" ]]; then
