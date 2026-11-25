@@ -181,9 +181,11 @@ app.post("/api/decrypt/worker/claim", workerAuth, (req, res) => {
 app.post("/api/decrypt/worker/progress", workerAuth, (req, res) => {
   const id = req.body?.id;
   const msg = req.body?.msg || "";
-  const job = store.progress(id, msg, LEASE_MS);
+  const percent = req.body?.percent;
+  const stage = req.body?.stage || null;
+  const job = store.progress(id, msg, LEASE_MS, percent, stage);
   if (!job) return res.status(409).json({ ok: false, error: "job not leased" });
-  return res.json({ ok: true });
+  return res.json({ ok: true, percent: job.percent, stage: job.stage });
 });
 
 app.post("/api/decrypt/worker/fail", workerAuth, (req, res) => {
@@ -333,18 +335,56 @@ function renderDashboard() {
       }).join("") : "<span class='muted'>No phones have claimed yet.</span>";
 
       const jobs = data.jobs || [];
-      document.getElementById("jobs").innerHTML = "<table><thead><tr><th>Status</th><th>App / URL</th><th>Country</th><th>Phone</th><th>Speeds</th><th>Updated</th></tr></thead><tbody>" +
-        jobs.map(j => "<tr>" +
-          "<td><span class='pill " + j.status + "'>" + j.status + "</span></td>" +
-          "<td><div>" + (j.name || "—") + "</div><div class='muted'>" + (j.url || "") + "</div>" +
-            (j.progress ? "<div class='muted'>" + j.progress + "</div>" : "") +
-            (j.error ? "<div class='err'>" + j.error + "</div>" : "") +
-          "</td>" +
-          "<td>" + (j.country || "—") + "</td>" +
-          "<td>" + (j.phoneId || "—") + "</td>" +
-          "<td class='mono'>↑ " + mbps(j.upload && j.upload.mbps) + "<br>✈ " + mbps(j.telegram && j.telegram.mbps) + "</td>" +
-          "<td>" + ago(j.updatedAt) + "</td>" +
-        "</tr>").join("") + "</tbody></table>";
+      function jobPercent(j) {
+        if (j.status === "done") return 100;
+        if (j.status === "queued") return Number(j.percent) || 0;
+        if (typeof j.percent === "number") return Math.max(0, Math.min(100, j.percent));
+        return 0;
+      }
+      function stageLabel(j) {
+        if (j.status === "done") return "complete";
+        if (j.status === "failed") return "failed";
+        if (j.status === "queued") return "queued";
+        return j.stage || "working";
+      }
+      document.getElementById("jobs").innerHTML = jobs.length
+        ? "<div class='job-list'>" + jobs.map(j => {
+            const pct = jobPercent(j);
+            const stage = stageLabel(j);
+            const fillClass = j.status === "done" ? "done" : (j.status === "failed" ? "failed" : (j.status === "queued" ? "queued" : ""));
+            const title = j.name || (j.url ? String(j.url).split("/").filter(Boolean).slice(-2).join("/") : "Job");
+            return "<article class='job-card'>" +
+              "<div class='job-card-top'>" +
+                "<div style='min-width:0;flex:1'>" +
+                  "<div class='job-title'>" + title + "</div>" +
+                  "<div class='job-url'>" + (j.url || "") + "</div>" +
+                  "<div class='job-meta'>" +
+                    "<span class='pill " + j.status + "'>" + j.status + "</span>" +
+                    "<span>" + (j.country || "—").toUpperCase() + "</span>" +
+                    "<span>" + (j.phoneId || "—") + "</span>" +
+                    "<span>" + ago(j.updatedAt) + "</span>" +
+                  "</div>" +
+                "</div>" +
+                "<div class='job-progress-pct'>" + pct + "%</div>" +
+              "</div>" +
+              "<div class='job-progress'>" +
+                "<div class='job-progress-head'>" +
+                  "<span class='job-stage'>" + stage + "</span>" +
+                  "<span class='muted mono'>" + pct + " / 100</span>" +
+                "</div>" +
+                "<div class='job-progress-track' role='progressbar' aria-valuenow='" + pct + "' aria-valuemin='0' aria-valuemax='100'>" +
+                  "<div class='job-progress-fill " + fillClass + "' style='width:" + pct + "%'></div>" +
+                "</div>" +
+              "</div>" +
+              (j.progress ? "<div class='job-msg'>" + j.progress + "</div>" : "") +
+              (j.error ? "<div class='err'>" + j.error + "</div>" : "") +
+              "<div class='job-speeds mono'>↑ phone " + mbps(j.upload && j.upload.mbps) +
+                " · ✈ telegram " + mbps(j.telegram && j.telegram.mbps) +
+                (j.ipaBytes ? " · " + bytes(j.ipaBytes) : "") +
+              "</div>" +
+            "</article>";
+          }).join("") + "</div>"
+        : "<span class='muted'>No jobs yet.</span>";
 
       const transfers = data.recentTransfers || [];
       document.getElementById("transfers").innerHTML = "<table><thead><tr><th>Path</th><th>Name</th><th>Size</th><th>Speed</th><th>When</th></tr></thead><tbody>" +

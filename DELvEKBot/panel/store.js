@@ -6,6 +6,21 @@ function now() {
   return Date.now();
 }
 
+/** Map free-text worker progress into a stage + percent for the dashboard. */
+function inferProgress(msg, prevPercent = 0) {
+  const m = String(msg || "").toLowerCase();
+  if (m.includes("upload")) return { stage: "upload", percent: 80 };
+  if (m.includes("buddy3") || m.includes("decrypt")) {
+    return { stage: "decrypt", percent: Math.max(prevPercent || 0, 55) };
+  }
+  if (m.includes("install") || m.includes("switching") || m.includes("fetch")) {
+    return { stage: "install", percent: 35 };
+  }
+  if (m.includes("resolv")) return { stage: "resolve", percent: 15 };
+  if (m.includes("claimed")) return { stage: "claimed", percent: 5 };
+  return { stage: "working", percent: Math.max(prevPercent || 0, 10) };
+}
+
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
@@ -45,6 +60,8 @@ class Store {
       status: "queued",
       error: null,
       progress: null,
+      percent: 0,
+      stage: "queued",
       name: null,
       ipaPath: null,
       ipaBytes: 0,
@@ -106,6 +123,8 @@ class Store {
         job.leaseExpiresAt = null;
         job.phoneId = null;
         job.progress = "lease expired · requeued";
+        job.percent = 0;
+        job.stage = "queued";
         job.updatedAt = t;
         changed = true;
       }
@@ -132,6 +151,8 @@ class Store {
     job.phoneId = phoneId || "default-phone";
     job.leaseExpiresAt = now() + leaseMs;
     job.progress = "claimed";
+    job.percent = 5;
+    job.stage = "claimed";
     job.updatedAt = now();
     this.touchPhone(job.phoneId, {
       status: "busy",
@@ -143,10 +164,18 @@ class Store {
     return job;
   }
 
-  progress(id, msg, leaseMs) {
+  progress(id, msg, leaseMs, percent, stage) {
     const job = this.getJob(id);
     if (!job || job.status !== "leased") return null;
     job.progress = msg;
+    const inferred = inferProgress(msg, job.percent);
+    const nextPct =
+      percent != null && Number.isFinite(Number(percent))
+        ? Math.max(0, Math.min(99, Math.round(Number(percent))))
+        : inferred.percent;
+    // Never let a heartbeat move progress backwards.
+    job.percent = Math.max(job.percent || 0, nextPct);
+    job.stage = stage || inferred.stage || job.stage || "working";
     job.leaseExpiresAt = now() + leaseMs;
     job.updatedAt = now();
     if (job.phoneId) this.touchPhone(job.phoneId, { status: "busy", activeJobId: job.id });
@@ -159,6 +188,7 @@ class Store {
     if (!job || job.status !== "leased") return null;
     job.status = "failed";
     job.error = error || "failed";
+    job.stage = "failed";
     job.leaseExpiresAt = null;
     job.updatedAt = now();
     if (job.phoneId) {
@@ -189,6 +219,8 @@ class Store {
     job.leaseExpiresAt = null;
     job.error = null;
     job.progress = "complete";
+    job.percent = 100;
+    job.stage = "complete";
     job.updatedAt = endedAt;
     job.upload = {
       bytes,
