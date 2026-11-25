@@ -43,7 +43,10 @@ FETCH_WAIT_SECONDS=8
 
 ```sh
 bash delvekbot-worker.sh
+# auto re-execs under: sudo -E bash delvekbot-worker.sh
 ```
+
+Phone scripts always elevate with **`sudo -E`** (buddy3 / appstorectl need root). You can still type plain `bash …`; sudo is applied for you.
 
 Job flow on the phone: resolve URL → **`appstoredl` install** (signed-in App Store account) → **`buddy3` decrypt** → upload to VPS → Telegram.
 
@@ -57,7 +60,7 @@ cd DELvEKBot/phone
 cp accounts.example.json accounts.json   # edit Apple IDs
 mkdir -p passwords && chmod 700 passwords
 # put each password in passwords/us.pass, passwords/in.pass (chmod 600)
-bash bootstrap-accounts.sh               # interactive; complete 2FA once each
+bash bootstrap-accounts.sh               # sudo -E; interactive 2FA once each
 ```
 
 Requires [`appstorectl`](https://github.com/appknox/appstorectl) on the phone.

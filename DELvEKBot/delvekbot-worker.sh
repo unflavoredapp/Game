@@ -13,6 +13,7 @@
 #   export BUDDY3_BIN=/var/mobile/Documents/buddy3
 #   export BUDDY3_OUT_DIR=/var/mobile/Documents
 #   bash delvekbot-worker.sh
+#   # (auto re-execs under sudo on iPhone — buddy3 / appstorectl need root)
 #
 # Or copy .env.example to .env next to this script (auto-loaded).
 #
@@ -31,8 +32,10 @@
 #   COUNTRY=us                           # default / fallback storefront
 #   COUNTRIES=us,in                      # or auto from phone/accounts.json
 #   DELVEKBOT_PHONE_DIR=.../DELvEKBot/phone
+#   DELVEKBOT_NO_SUDO=1                  # skip sudo re-exec (tests only)
 #
 # Notes:
+# - Always runs as root on the phone (re-execs via sudo -E unless already root).
 # - jq is required for reliable JSON parsing.
 # - The worker uses the existing /progress endpoint for heartbeat messages.
 #   The server must extend the job lease on progress calls if you want those
@@ -124,6 +127,23 @@ release_lock() {
 
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing command: $1"
+}
+
+# buddy3 / appstorectl / appstoredl need root on Dopamine. Re-exec under sudo
+# while preserving env (tokens, paths) via -E. Set DELVEKBOT_NO_SUDO=1 to skip.
+ensure_root_via_sudo() {
+  local uid
+  uid="$(id -u 2>/dev/null || echo 1)"
+  if [[ "$uid" -eq 0 ]]; then
+    return 0
+  fi
+  if [[ "${DELVEKBOT_NO_SUDO:-0}" == "1" ]]; then
+    log "DELVEKBOT_NO_SUDO=1 · continuing as uid=${uid} (not for production)"
+    return 0
+  fi
+  need_cmd sudo
+  log "not root (uid=${uid}) · re-executing under sudo -E"
+  exec sudo -E -- "$0" "$@"
 }
 
 normalize_base() {
@@ -574,6 +594,8 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 main() {
+  ensure_root_via_sudo "$@"
+
   need_cmd curl
   need_cmd jq
   need_cmd find
@@ -596,7 +618,7 @@ main() {
   # Single-worker lock (flock if present, else mkdir).
   acquire_lock
 
-  log "site=${BASE} · buddy3=${BUDDY3_BIN}"
+  log "uid=$(id -u) · site=${BASE} · buddy3=${BUDDY3_BIN}"
   log "phone=${PHONE_ID} · countries=${COUNTRIES} · poll=${POLL_SECONDS}s · output=${DOCS}"
   log "accounts=${ACCOUNTS_JSON} · switch=$([[ -x $SWITCH_SCRIPT ]] && echo yes || echo no)"
   if [[ -n "$APPSTOREDL_BIN" ]]; then

@@ -1,10 +1,20 @@
 #!/usr/bin/env bash
 # Switch the active App Store account to the Apple ID for a country code.
 # Intended to run on the jailbroken phone before appstoredl / appstorectl install.
+# Always re-execs under sudo on iPhone (appstorectl needs root).
 #
 # Usage: switch-storefront.sh <country>
 # Example: switch-storefront.sh in
 set -Eeuo pipefail
+
+if [[ "$(id -u 2>/dev/null || echo 1)" -ne 0 && "${DELVEKBOT_NO_SUDO:-0}" != "1" ]]; then
+  command -v sudo >/dev/null 2>&1 || {
+    echo "DELvEKBot: need sudo (or run as root)" >&2
+    exit 1
+  }
+  echo "DELvEKBot: re-executing under sudo -E" >&2
+  exec sudo -E -- "$0" "$@"
+fi
 
 COUNTRY="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z')"
 [[ "${#COUNTRY}" -eq 2 ]] || {
