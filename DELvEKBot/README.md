@@ -72,6 +72,6 @@ bash DELvEKBot/tests/test-claim-parse.sh
 
 ## Operational recommendation
 
-Give every phone a unique `DELVEKBOT_ADID`. Keep a server-side worker record
-(last-seen, online state, iOS/jailbreak, storage, capabilities) and route only
-compatible jobs.
+Give every phone its own revocable `DECRYPT_WORKER_TOKEN`. Keep a server-side
+worker record (last-seen, online state, iOS/jailbreak, storage, capabilities)
+keyed by that token and route only compatible jobs.

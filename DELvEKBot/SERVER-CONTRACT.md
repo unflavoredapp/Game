@@ -13,7 +13,8 @@ The phone worker preserves the API paths and headers from the submitted script.
 
 All requests include:
 - `X-Decrypt-Worker-Token: <worker token>`
-- `X-AS-ADID: <worker ID>`
+
+Auth is token-only. No AirShare / ADID header is sent or required.
 
 ### Claim response shapes
 
@@ -34,9 +35,8 @@ The worker treats any response without extractable string `id`/`url` as idle/inv
 
 ## Recommended worker registry
 
-Store one record per registered worker:
+Store one record per registered worker (keyed by worker token or an opaque server-side id):
 
-- `adid` (unique stable worker identifier)
 - `status` (`online`, `offline`, `busy`, `disabled`)
 - `last_seen_at`
 - `ios_version`

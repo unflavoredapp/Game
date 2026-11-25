@@ -16,7 +16,6 @@
 # Or copy .env.example to .env next to this script (auto-loaded).
 #
 # Optional:
-#   DELVEKBOT_ADID=iphone-worker-01
 #   POLL_SECONDS=3
 #   HEARTBEAT_SECONDS=30
 #   COUNTRY=us
@@ -52,7 +51,6 @@ DOCS="${BUDDY3_OUT_DIR:-/var/mobile/Documents}"
 POLL_SECONDS="${POLL_SECONDS:-3}"
 HEARTBEAT_SECONDS="${HEARTBEAT_SECONDS:-30}"
 COUNTRY="${COUNTRY:-us}"
-ADID="${DELVEKBOT_ADID:-${DECRYPT_WORKER_ADID:-delvekbot-dopamine}}"
 CURL_CONNECT_TIMEOUT="${CURL_CONNECT_TIMEOUT:-15}"
 CURL_MAX_TIME="${CURL_MAX_TIME:-60}"
 UPLOAD_MAX_TIME="${UPLOAD_MAX_TIME:-1800}"
@@ -87,7 +85,6 @@ api() {
     --max-time "$CURL_MAX_TIME" \
     -X "$method" \
     -H "X-Decrypt-Worker-Token: ${TOKEN}" \
-    -H "X-AS-ADID: ${ADID}" \
     -H "Content-Type: application/json" \
     -H "Accept: application/json" \
     "$@" \
@@ -241,7 +238,6 @@ upload_ipa() {
     --max-time "$UPLOAD_MAX_TIME" \
     -X POST \
     -H "X-Decrypt-Worker-Token: ${TOKEN}" \
-    -H "X-AS-ADID: ${ADID}" \
     -H "Content-Type: application/octet-stream" \
     -H "Accept: application/json" \
     --data-binary @"$ipa" \
@@ -356,13 +352,13 @@ main() {
   exec 9>"$LOCK_FILE"
   flock -n 9 || die "another DELvEKBot worker is already running (lock: ${LOCK_FILE})"
 
-  log "site=${BASE} · adid=${ADID} · buddy3=${BUDDY3_BIN}"
+  log "site=${BASE} · buddy3=${BUDDY3_BIN}"
   log "poll=${POLL_SECONDS}s · heartbeat=${HEARTBEAT_SECONDS}s · output=${DOCS}"
 
   while true; do
     local resp id url fields
     if ! resp="$(api POST "api/decrypt/worker/claim" \
-        -d "$(jq -cn --arg adid "$ADID" '{adid:$adid}')" 2>/dev/null)"; then
+        -d '{}' 2>/dev/null)"; then
       log "claim request failed; retrying in ${POLL_SECONDS}s"
       sleep "$POLL_SECONDS"
       continue
