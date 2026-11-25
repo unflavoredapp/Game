@@ -2,6 +2,8 @@
 
 **Site:** [getipa.fast](https://getipa.fast)
 
+<p><img src="brand/getipa-icon.jpg" alt="getipa.fast icon" width="96" height="96" /></p>
+
 A **decryption network** with a versioned HTTP protocol. Nodes claim jobs, decrypt apps, and return artifacts through a relay. No wallets, tokens, or chains — shared secrets and leases.
 
 Built for **getipa.fast** — a separate domain that backpedaled on adopting DELvEKBot and running that VPS stack. We stay conceptually synced with [`../DELvEKBot/`](../DELvEKBot/) (same decrypt-job ideas; our production host remains [delvek.bot](https://delvek.bot/)), but this track is its own protocol + toolchain.
