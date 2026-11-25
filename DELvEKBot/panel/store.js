@@ -37,10 +37,11 @@ class Store {
     fs.renameSync(tmp, this.dbPath);
   }
 
-  enqueue(url) {
+  enqueue(url, country = "us") {
     const job = {
       id: randomUUID(),
       url: String(url).trim(),
+      country: String(country || "us").toLowerCase().slice(0, 2),
       status: "queued",
       error: null,
       progress: null,
@@ -112,10 +113,17 @@ class Store {
     if (changed) this.save();
   }
 
-  claim(phoneId, leaseMs) {
+  claim(phoneId, leaseMs, country = "") {
     this.reapExpired();
+    const want = String(country || "").toLowerCase().slice(0, 2);
     const job = this.state.jobs
       .filter((j) => j.status === "queued")
+      .filter((j) => {
+        const jc = String(j.country || "us").toLowerCase().slice(0, 2);
+        // Worker only receives jobs for its storefront country.
+        if (!want) return true;
+        return jc === want;
+      })
       .sort((a, b) => a.createdAt - b.createdAt)[0];
     if (!job) return null;
     job.status = "leased";
@@ -123,7 +131,11 @@ class Store {
     job.leaseExpiresAt = now() + leaseMs;
     job.progress = "claimed";
     job.updatedAt = now();
-    this.touchPhone(job.phoneId, { status: "busy", activeJobId: job.id });
+    this.touchPhone(job.phoneId, {
+      status: "busy",
+      activeJobId: job.id,
+      country: want || job.country || null,
+    });
     this.save();
     return job;
   }

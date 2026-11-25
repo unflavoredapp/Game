@@ -138,13 +138,26 @@ app.get("/api/admin/stats", adminAuth, (_req, res) => {
   res.json({ ok: true, ...store.stats() });
 });
 
+function normalizeCountry(value, fallback = "us") {
+  const c = String(value || "").toLowerCase().replace(/[^a-z]/g, "");
+  return (c.slice(0, 2) || fallback).slice(0, 2);
+}
+
+function countryFromStoreUrl(url) {
+  const m = String(url).match(/apps\.apple\.com\/([a-z]{2})\//i);
+  return m ? m[1].toLowerCase() : null;
+}
+
 app.post("/api/decrypt/admin/enqueue", adminAuth, (req, res) => {
   const url = String(req.body?.url || "").trim();
   if (!url.startsWith("http")) {
     return res.status(400).json({ ok: false, error: "url required" });
   }
-  const job = store.enqueue(url);
-  return res.json({ ok: true, id: job.id, url: job.url });
+  const country = normalizeCountry(
+    req.body?.country || countryFromStoreUrl(url) || "us"
+  );
+  const job = store.enqueue(url, country);
+  return res.json({ ok: true, id: job.id, url: job.url, country: job.country });
 });
 
 app.get("/api/decrypt/admin/jobs", adminAuth, (_req, res) => {
@@ -153,10 +166,13 @@ app.get("/api/decrypt/admin/jobs", adminAuth, (_req, res) => {
 
 app.post("/api/decrypt/worker/claim", workerAuth, (req, res) => {
   const phone = phoneIdFromReq(req);
-  store.touchPhone(phone, { status: "online" });
-  const job = store.claim(phone, LEASE_MS);
+  const country = normalizeCountry(
+    req.body?.country || req.get("X-Delvekbot-Country") || "us"
+  );
+  store.touchPhone(phone, { status: "online", country });
+  const job = store.claim(phone, LEASE_MS, country);
   if (!job) return res.json({ job: null });
-  return res.json({ id: job.id, url: job.url });
+  return res.json({ id: job.id, url: job.url, country: job.country });
 });
 
 app.post("/api/decrypt/worker/progress", workerAuth, (req, res) => {
@@ -246,7 +262,10 @@ function renderDashboard() {
       <div class="panel span-6">
         <h2>Enqueue App Store URL</h2>
         <label for="url">URL</label>
-        <input id="url" placeholder="https://apps.apple.com/.../id123456789" />
+        <input id="url" placeholder="https://apps.apple.com/in/app/.../id123456789" />
+        <label for="country">Storefront country</label>
+        <input id="country" maxlength="2" placeholder="us" value="us" style="max-width:6rem" />
+        <p class="muted" style="margin:0 0 12px;font-size:0.75rem">Must match the phone’s Apple ID storefront (e.g. <code>in</code> for India).</p>
         <div class="row">
           <button id="enqueue" type="button">Queue job</button>
         </div>
@@ -305,18 +324,20 @@ function renderDashboard() {
       document.getElementById("phones").innerHTML = phones.length ? phones.map(p => {
         const online = p.lastSeenAt && (Date.now() - p.lastSeenAt) < 120000;
         return "<div style='margin-bottom:10px'><strong>" + (p.id || "phone") + "</strong> " +
-          "<span class='pill " + (online ? "online" : "offline") + "'>" + (online ? "online" : "offline") + "</span><br>" +
+          "<span class='pill " + (online ? "online" : "offline") + "'>" + (online ? "online" : "offline") + "</span> " +
+          (p.country ? "<span class='pill'>" + p.country + "</span>" : "") + "<br>" +
           "<span class='muted'>" + ago(p.lastSeenAt) + " · " + (p.jobsDone||0) + " done · " + bytes(p.bytesIn||0) + "</span></div>";
       }).join("") : "<span class='muted'>No phones have claimed yet.</span>";
 
       const jobs = data.jobs || [];
-      document.getElementById("jobs").innerHTML = "<table><thead><tr><th>Status</th><th>App / URL</th><th>Phone</th><th>Speeds</th><th>Updated</th></tr></thead><tbody>" +
+      document.getElementById("jobs").innerHTML = "<table><thead><tr><th>Status</th><th>App / URL</th><th>Country</th><th>Phone</th><th>Speeds</th><th>Updated</th></tr></thead><tbody>" +
         jobs.map(j => "<tr>" +
           "<td><span class='pill " + j.status + "'>" + j.status + "</span></td>" +
           "<td><div>" + (j.name || "—") + "</div><div class='muted'>" + (j.url || "") + "</div>" +
             (j.progress ? "<div class='muted'>" + j.progress + "</div>" : "") +
             (j.error ? "<div class='err'>" + j.error + "</div>" : "") +
           "</td>" +
+          "<td>" + (j.country || "—") + "</td>" +
           "<td>" + (j.phoneId || "—") + "</td>" +
           "<td class='mono'>↑ " + mbps(j.upload && j.upload.mbps) + "<br>✈ " + mbps(j.telegram && j.telegram.mbps) + "</td>" +
           "<td>" + ago(j.updatedAt) + "</td>" +
@@ -335,6 +356,9 @@ function renderDashboard() {
 
     document.getElementById("enqueue").onclick = async () => {
       const url = document.getElementById("url").value.trim();
+      let country = (document.getElementById("country").value || "us").trim().toLowerCase();
+      const fromUrl = (url.match(/apps\\.apple\\.com\\/([a-z]{2})\\//i) || [])[1];
+      if (fromUrl) country = fromUrl.toLowerCase();
       const msg = document.getElementById("enqueue-msg");
       msg.className = "";
       msg.textContent = "Queuing…";
@@ -342,13 +366,14 @@ function renderDashboard() {
         const res = await fetch("/api/decrypt/admin/enqueue", {
           method: "POST",
           headers,
-          body: JSON.stringify({ url }),
+          body: JSON.stringify({ url, country }),
         });
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.error || res.status);
         msg.className = "ok";
-        msg.textContent = "Queued " + data.id;
+        msg.textContent = "Queued " + data.id + " · " + (data.country || country);
         document.getElementById("url").value = "";
+        document.getElementById("country").value = data.country || country;
         refresh();
       } catch (e) {
         msg.className = "err";

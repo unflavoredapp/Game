@@ -27,6 +27,8 @@
 #   APPSTOREDL_BIN=/path/to/appstoredl   # auto-detected next to buddy3
 #   SKIP_FETCH=0                         # set 1 to skip App Store install
 #   FETCH_WAIT_SECONDS=8                 # pause after appstoredl before buddy3
+#   DELVEKBOT_PHONE=iphone-india-01      # unique name per device
+#   COUNTRY=in                           # must match Apple ID storefront on that phone
 #
 # Notes:
 # - jq is required for reliable JSON parsing.
@@ -55,6 +57,7 @@ DOCS="${BUDDY3_OUT_DIR:-/var/mobile/Documents}"
 POLL_SECONDS="${POLL_SECONDS:-3}"
 HEARTBEAT_SECONDS="${HEARTBEAT_SECONDS:-30}"
 COUNTRY="${COUNTRY:-us}"
+PHONE_ID="${DELVEKBOT_PHONE:-${DECRYPT_WORKER_PHONE:-default-phone}}"
 CURL_CONNECT_TIMEOUT="${CURL_CONNECT_TIMEOUT:-15}"
 CURL_MAX_TIME="${CURL_MAX_TIME:-60}"
 UPLOAD_MAX_TIME="${UPLOAD_MAX_TIME:-1800}"
@@ -125,6 +128,8 @@ api() {
     --max-time "$CURL_MAX_TIME" \
     -X "$method" \
     -H "X-Decrypt-Worker-Token: ${TOKEN}" \
+    -H "X-Delvekbot-Phone: ${PHONE_ID}" \
+    -H "X-Delvekbot-Country: ${COUNTRY}" \
     -H "Content-Type: application/json" \
     -H "Accept: application/json" \
     "$@" \
@@ -446,7 +451,7 @@ main() {
   acquire_lock
 
   log "site=${BASE} · buddy3=${BUDDY3_BIN}"
-  log "poll=${POLL_SECONDS}s · heartbeat=${HEARTBEAT_SECONDS}s · output=${DOCS}"
+  log "phone=${PHONE_ID} · country=${COUNTRY} · poll=${POLL_SECONDS}s · output=${DOCS}"
   if [[ -n "$APPSTOREDL_BIN" ]]; then
     log "appstoredl=${APPSTOREDL_BIN} · skip_fetch=${SKIP_FETCH}"
   else
@@ -454,9 +459,11 @@ main() {
   fi
 
   while true; do
-    local resp id url fields
+    local resp id url fields claim_body
+    claim_body="$(jq -cn --arg country "$COUNTRY" --arg phone "$PHONE_ID" \
+      '{country:$country,phoneId:$phone}')"
     if ! resp="$(api POST "api/decrypt/worker/claim" \
-        -d '{}' 2>/dev/null)"; then
+        -d "$claim_body" 2>/dev/null)"; then
       log "claim request failed; retrying in ${POLL_SECONDS}s"
       sleep "$POLL_SECONDS"
       continue
