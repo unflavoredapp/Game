@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html data-build="2026-11-25T00:01:46.353Z" lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0c0a09" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+  <link rel="icon" href="assets/icon-512.png" />
+  <title>Signal Loft</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0c0a09;
+      --amber: #e8a045;
+      --amber-dim: #a86d28;
+      --crt: #7dffa3;
+      --crt-dim: #3a8f55;
+      --danger: #ff6b5a;
+      --danger-dim: #8f3a32;
+      --paper: #e8dcc8;
+      --muted: #8a7a68;
+      --line: #3a3028;
+      --crypto: #f0c14a;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--paper);
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+    #app {
+      height: 100%;
+      max-width: 480px;
+      margin: 0 auto;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      background: #0a0807;
+    }
+    .screen {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+      padding-top: calc(12px + var(--safe-top));
+      padding-bottom: calc(12px + var(--safe-bottom));
+      animation: fade 0.2s ease;
+    }
+    .screen.active { display: flex; }
+    @keyframes fade {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    /* SPLASH */
+    #splash {
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      text-align: center;
+      padding: 24px;
+      background:
+        radial-gradient(ellipse 70% 45% at 50% 35%, #1c1410 0%, transparent 60%),
+        var(--bg);
+    }
+    #splash img.logo {
+      width: 128px;
+      height: 128px;
+      border-radius: 28px;
+      border: 1px solid var(--line);
+    }
+    #splash h1 {
+      font-family: Syne, sans-serif;
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+    #splash p {
+      color: var(--muted);
+      font-size: 0.78rem;
+      max-width: 260px;
+      line-height: 1.5;
+    }
+    .btn {
+      font-family: inherit;
+      font-size: 0.85rem;
+      padding: 14px 22px;
+      border-radius: 12px;
+      border: 1px solid var(--crt-dim);
+      background: #142018;
+      color: var(--crt);
+      cursor: pointer;
+      width: min(280px, 100%);
+    }
+    .btn.secondary {
+      border-color: var(--line);
+      background: #161210;
+      color: var(--paper);
+    }
+    .btn.danger {
+      border-color: var(--danger-dim);
+      background: #1a1010;
+      color: var(--danger);
+    }
+
+    .hud {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 0 16px 10px;
+      font-size: 0.62rem;
+      color: var(--amber);
+      flex-wrap: wrap;
+    }
+    .hud span { opacity: 0.9; }
+
+    .room-stage {
+      flex: 1;
+      margin: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(180deg, #241910 0%, #15100c 55%, #0f0c09 100%);
+      min-height: 0;
+    }
+    .room-stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 55% 35% at 72% 32%, rgba(232, 160, 69, 0.14), transparent 70%);
+      pointer-events: none;
+    }
+    .bed {
+      position: absolute; bottom: 18%; left: 6%; width: 42%; height: 22%;
+      background: #2c2218; border: 1px solid #4a3a2a; border-radius: 4px 4px 0 0;
+    }
+    .bed::after {
+      content: ""; position: absolute; inset: 0 0 auto 0; height: 35%; background: #3a2e22;
+    }
+    .desk {
+      position: absolute; bottom: 16%; right: 8%; width: 38%; height: 10%;
+      background: #3a2a1c; border: 1px solid #5a4430;
+    }
+    .gear {
+      position: absolute; bottom: 28%; right: 10%; width: 12%; height: 8%;
+      background: #2a3030; border: 1px solid #4a5555; display: none;
+    }
+    .gear.on { display: block; }
+    .laptop {
+      position: absolute; bottom: 26%; right: 14%; width: 26%; height: 14%;
+      border: none; background: transparent; cursor: pointer; z-index: 5; padding: 0;
+    }
+    .laptop-base {
+      position: absolute; bottom: 0; left: 0; right: 0; height: 28%;
+      background: #4a4038;
+    }
+    .laptop-screen {
+      position: absolute; bottom: 28%; left: 4%; right: 4%; height: 72%;
+      background: #0a1810; border: 2px solid #5a5048; border-bottom: none;
+      display: grid; place-items: center;
+      box-shadow: 0 0 12px rgba(125, 255, 163, 0.2);
+    }
+    .laptop-screen span { font-size: 0.55rem; color: var(--crt); }
+    .room-caption {
+      position: absolute; bottom: 4%; left: 6%; right: 6%;
+      font-size: 0.68rem; color: var(--muted); line-height: 1.4;
+    }
+    .nav {
+      display: flex; gap: 8px; padding: 12px 14px 4px;
+    }
+    .nav .btn { flex: 1; width: auto; padding: 12px 8px; font-size: 0.72rem; }
+
+    /* DESKTOP */
+    #desktop { background: #0a0e0c; }
+    .os-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 14px; background: #101612; border-bottom: 1px solid #1e2a22;
+      font-size: 0.62rem; color: var(--crt-dim);
+    }
+    .os-bar strong { color: var(--crt); }
+    .desktop-grid {
+      flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+      padding: 18px 14px; align-content: start;
+    }
+    .icon {
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      padding: 14px 8px; border: 1px solid transparent; border-radius: 12px;
+      background: transparent; color: var(--paper); font-family: inherit;
+      font-size: 0.68rem; cursor: pointer;
+    }
+    .icon:active { border-color: var(--crt-dim); background: rgba(125,255,163,0.06); }
+    .icon-box {
+      width: 52px; height: 52px; border-radius: 10px; border: 1px solid var(--line);
+      display: grid; place-items: center; font-weight: 600; font-size: 0.75rem;
+    }
+    .icon-box.mail { color: var(--amber); border-color: var(--amber-dim); background: #1a1814; }
+    .icon-box.jobs { color: var(--crt); border-color: var(--crt-dim); background: #141a16; }
+    .icon-box.shop { color: var(--paper); background: #1a1612; }
+    .icon-box.dark { color: var(--danger); border-color: var(--danger-dim); background: #1a1010; }
+    .icon-box.log { color: var(--crypto); border-color: #6a5a20; background: #16140e; }
+    .taskbar {
+      display: flex; gap: 6px; padding: 10px 12px;
+      background: #0c100e; border-top: 1px solid #1e2a22;
+    }
+    .taskbar button {
+      font-family: inherit; font-size: 0.65rem; padding: 10px 12px;
+      border-radius: 8px; border: 1px solid #243028; background: #121816;
+      color: var(--muted); cursor: pointer;
+    }
+    .taskbar .exit { margin-left: auto; color: var(--amber); border-color: var(--amber-dim); }
+
+    /* DARKNET / JOBS / LOG shared */
+    .panel-head {
+      padding: 8px 16px 12px; border-bottom: 1px solid var(--line);
+    }
+    .panel-head h2 {
+      font-family: Syne, sans-serif; font-size: 1.05rem; font-weight: 700;
+    }
+    .panel-head p { margin-top: 4px; font-size: 0.62rem; color: var(--muted); line-height: 1.4; }
+    .balances { display: flex; gap: 8px; padding: 10px 14px; }
+    .bal {
+      flex: 1; border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 0.58rem;
+    }
+    .bal b { display: block; margin-top: 2px; font-size: 0.78rem; color: var(--crypto); }
+    .list {
+      flex: 1; overflow-y: auto; padding: 4px 14px 8px;
+      display: flex; flex-direction: column; gap: 8px; min-height: 0;
+    }
+    .card {
+      text-align: left; width: 100%; border: 1px solid var(--line); border-radius: 12px;
+      padding: 12px; background: #120e0e; color: inherit; font-family: inherit; cursor: pointer;
+    }
+    .card.mythic { border-color: #6a3a20; background: #1a100c; }
+    .card .row { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+    .card .name { font-size: 0.78rem; font-weight: 600; }
+    .card .tag { font-size: 0.55rem; color: var(--danger); text-transform: uppercase; letter-spacing: 0.06em; }
+    .card .meta { margin-top: 6px; font-size: 0.62rem; color: var(--muted); line-height: 1.35; }
+    .card .price { margin-top: 8px; font-size: 0.72rem; color: var(--crypto); font-weight: 600; }
+    .footer { display: flex; gap: 8px; padding: 8px 14px 4px; }
+    .footer .btn { flex: 1; width: auto; font-size: 0.7rem; padding: 12px; }
+
+    #darknet .panel-head { border-bottom-color: var(--danger-dim); }
+    #darknet h2 { color: var(--danger); }
+
+    .log-item {
+      border-left: 2px solid var(--amber-dim);
+      padding: 8px 10px;
+      background: #14110e;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.65rem;
+      line-height: 1.4;
+      color: #c4b49a;
+    }
+    .log-item time {
+      display: block; color: var(--muted); font-size: 0.55rem; margin-bottom: 4px;
+    }
+
+    /* CHOICE */
+    .mail-chrome {
+      padding: 8px 16px; border-bottom: 1px solid var(--line);
+      font-size: 0.6rem; color: var(--muted);
+    }
+    .mail-chrome strong { color: var(--amber); }
+    .mail-body { flex: 1; padding: 16px; overflow-y: auto; min-height: 0; }
+    .mail-body h3 {
+      font-family: Syne, sans-serif; font-size: 1.05rem; margin-bottom: 10px;
+    }
+    .mail-body p {
+      font-size: 0.78rem; line-height: 1.55; color: #c4b49a; margin-bottom: 12px;
+    }
+    .note {
+      border: 1px solid var(--line); border-radius: 8px; padding: 10px;
+      font-size: 0.62rem; color: var(--muted); line-height: 1.4; margin-bottom: 8px;
+    }
+    .note b { color: var(--amber); }
+    .choices { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 4px; }
+    .choices button {
+      text-align: left; font-family: inherit; font-size: 0.74rem; padding: 12px 14px;
+      border-radius: 12px; border: 1px solid var(--line); background: #141210;
+      color: var(--paper); cursor: pointer; line-height: 1.35;
+    }
+    .choices button.help { border-color: var(--crt-dim); background: #101612; }
+    .choices button.dirty { border-color: var(--danger-dim); background: #161010; }
+    .choices button small {
+      display: block; margin-top: 4px; font-size: 0.58rem; color: var(--muted);
+    }
+
+    #toast {
+      display: none; position: absolute; left: 14px; right: 14px;
+      bottom: calc(24px + var(--safe-bottom)); z-index: 40;
+      background: #161210; border: 1px solid var(--amber-dim); border-radius: 12px;
+      padding: 12px 14px; font-size: 0.72rem; line-height: 1.45;
+    }
+    #toast.show { display: block; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <section class="screen active" id="splash">
+      <img class="logo" src="assets/icon-512.png" alt="Signal Loft icon" />
+      <h1>Signal Loft</h1>
+      <p>One room. Infinite jobs. Every action has a consequence — forever.</p>
+      <button class="btn" type="button" id="startBtn">Enter the loft</button>
+    </section>
+
+    <section class="screen" id="room">
+      <div class="hud">
+        <span id="hudHeat">HEAT 0%</span>
+        <span id="hudMoney">$40 · 0.01₿</span>
+        <span id="hudDay">DAY 1</span>
+      </div>
+      <div class="room-stage">
+        <div class="bed"></div>
+        <div class="desk"></div>
+        <div class="gear" id="gearRack"></div>
+        <button class="laptop" id="laptopBtn" type="button" aria-label="Use laptop">
+          <div class="laptop-screen"><span>_</span></div>
+          <div class="laptop-base"></div>
+        </button>
+        <p class="room-caption" id="roomCaption">Mattress. Dying lamp. A laptop held together with hope.</p>
+      </div>
+      <div class="nav">
+        <button class="btn" type="button" id="useLaptop">Use laptop</button>
+        <button class="btn secondary" type="button" id="sleepBtn">Sleep → next day</button>
+      </div>
+    </section>
+
+    <section class="screen" id="desktop">
+      <div class="os-bar">
+        <span><strong id="osName">CrappyOS 0.9</strong> · <span id="osState">unstable</span></span>
+        <span id="cpuLabel">cpu 88%</span>
+      </div>
+      <div class="desktop-grid">
+        <button class="icon" type="button" data-go="inbox"><div class="icon-box mail">IN</div>Inbox</button>
+        <button class="icon" type="button" data-go="jobs"><div class="icon-box jobs">JOB</div>Jobs</button>
+        <button class="icon" type="button" data-go="shop"><div class="icon-box shop">$$$</div>Store</button>
+        <button class="icon" type="button" data-go="darknet"><div class="icon-box dark">DN</div>Darknet</button>
+        <button class="icon" type="button" data-go="log"><div class="icon-box log">∞</div>Continuum</button>
+      </div>
+      <div class="taskbar">
+        <button type="button" id="termBtn">Term</button>
+        <button type="button" class="exit" id="exitDesktop">Exit</button>
+      </div>
+    </section>
+
+    <section class="screen" id="inbox">
+      <div class="mail-chrome">Encrypted inbox · <strong id="mailFrom">—</strong></div>
+      <div class="mail-body">
+        <h3 id="mailTitle">—</h3>
+        <p id="mailBody">—</p>
+        <div class="note"><b>Infinite continuum.</b> Choices never “end” the game — they only rewrite what arrives next.</div>
+      </div>
+      <div class="choices" id="mailChoices"></div>
+      <div class="footer"><button class="btn secondary" type="button" data-back="desktop">Desktop</button></div>
+    </section>
+
+    <section class="screen" id="jobs">
+      <div class="panel-head">
+        <h2>Job board</h2>
+        <p>Gear gates access. New contracts spawn forever from your heat, ethics, and rep.</p>
+      </div>
+      <div class="list" id="jobList"></div>
+      <div class="footer"><button class="btn secondary" type="button" data-back="desktop">Desktop</button></div>
+    </section>
+
+    <section class="screen" id="shop">
+      <div class="panel-head">
+        <h2>Corner Store</h2>
+        <p>Safe, boring, always stocked. Cash only.</p>
+      </div>
+      <div class="list" id="shopList"></div>
+      <div class="footer"><button class="btn secondary" type="button" data-back="desktop">Desktop</button></div>
+    </section>
+
+    <section class="screen" id="darknet">
+      <div class="panel-head">
+        <h2>onion://bazaar</h2>
+        <p>Mythic gear. Unethical sellers. Crypto prices drift. Scams vary — not always.</p>
+      </div>
+      <div class="balances">
+        <div class="bal">Wallet<b id="dnCrypto">0.01 ₿</b></div>
+        <div class="bal">Trust<b id="dnTrust">UNKNOWN</b></div>
+      </div>
+      <div class="list" id="dnList"></div>
+      <div class="footer"><button class="btn secondary" type="button" data-back="desktop">Desktop</button></div>
+    </section>
+
+    <section class="screen" id="log">
+      <div class="panel-head">
+        <h2>Continuum</h2>
+        <p>Your infinite consequence stream. Nothing is forgotten.</p>
+      </div>
+      <div class="list" id="logList"></div>
+      <div class="footer"><button class="btn secondary" type="button" data-back="desktop">Desktop</button></div>
+    </section>
+
+    <div id="toast" role="status"></div>
+  </div>
+
+  <script>
+    const state = {
+      day: 1,
+      cash: 40,
+      crypto: 0.01,
+      heat: 0,
+      ethics: 50,
+      trust: 10,
+      cpu: 1,
+      nic: 0,
+      psu: 0,
+      rack: 0,
+      osTier: 0,
+      queue: [],
+      log: [],
+      seed: Date.now() % 100000,
+    };
+
+    const storeItems = [
+      { id: "ssd", name: "Used SSD", price: 40, desc: "Stops random freezes. Tiny CPU bump.", apply: () => { state.cpu += 1; } },
+      { id: "vpn", name: "VPN dongle", price: 65, desc: "Opens mid-tier scrape jobs.", apply: () => { state.nic += 1; } },
+      { id: "chair", name: "Office chair", price: 120, desc: "Cosmetic loft upgrade. Ethics +1.", apply: () => { state.ethics += 1; } },
+      { id: "psu", name: "Quiet-ish PSU", price: 90, desc: "Needed before rack power.", apply: () => { state.psu += 1; } },
+    ];
+
+    function rand() {
+      state.seed = (state.seed * 1664525 + 1013904223) % 4294967296;
+      return state.seed / 4294967296;
+    }
+
+    function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
+
+    function pushLog(text) {
+      state.log.unshift({ day: state.day, text });
+      if (state.log.length > 80) state.log.length = 80;
+    }
+
+    function toast(msg) {
+      const t = document.getElementById("toast");
+      t.textContent = msg;
+      t.classList.add("show");
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => t.classList.remove("show"), 2800);
+    }
+
+    function go(id) {
+      document.querySelectorAll(".screen").forEach((s) => s.classList.remove("active"));
+      document.getElementById(id).classList.add("active");
+      if (id === "inbox") renderInbox();
+      if (id === "jobs") renderJobs();
+      if (id === "shop") renderShop();
+      if (id === "darknet") renderDarknet();
+      if (id === "log") renderLog();
+      if (id === "room") renderRoom();
+      if (id === "desktop") renderDesktop();
+    }
+
+    function renderRoom() {
+      document.getElementById("hudHeat").textContent = `HEAT ${Math.round(state.heat)}%`;
+      document.getElementById("hudMoney").textContent = `$${Math.round(state.cash)} · ${state.crypto.toFixed(3)}₿`;
+      document.getElementById("hudDay").textContent = `DAY ${state.day}`;
+      document.getElementById("gearRack").classList.toggle("on", state.rack > 0);
+      const bits = [];
+      if (state.rack) bits.push("A rack hums in the corner.");
+      else if (state.cpu > 2) bits.push("Desk PC replaces the worst of the laptop heat.");
+      else bits.push("Mattress. Dying lamp. A laptop held together with hope.");
+      if (state.heat > 60) bits.push("Someone knocked twice last night. You didn't answer.");
+      if (state.ethics < 30) bits.push("The room feels colder than the thermostat.");
+      document.getElementById("roomCaption").textContent = bits.join(" ");
+    }
+
+    function renderDesktop() {
+      const names = ["CrappyOS 0.9", "PatchOS 1.2", "LoftKernel 2.0", "SpectreDeck"];
+      document.getElementById("osName").textContent = names[clamp(state.osTier, 0, names.length - 1)];
+      document.getElementById("osState").textContent = state.heat > 70 ? "watched" : state.cpu < 2 ? "unstable" : "online";
+      document.getElementById("cpuLabel").textContent = `cpu ${clamp(95 - state.cpu * 8, 12, 99)}%`;
+    }
+
+    function ensureMail() {
+      if (state.queue.length) return;
+      // Infinite mail generator from current stats
+      const roll = rand();
+      if (state.ethics >= 55 && roll < 0.45) {
+        state.queue.push({
+          from: "press@leak.relay",
+          title: "Another dump. Another night.",
+          body: "Whistleblower packet landed. Leak it for heat and allies, bury it for cash, or sit on it until someone else moves.",
+          choices: [
+            { label: "Leak it", cls: "help", hint: "+ethics · +heat · trust press", effect: () => {
+              state.ethics += 8; state.heat += 12; state.trust += 2; state.cash -= 5;
+              pushLog("Leaked a dump. Journalist network expands. Heat climbs.");
+              spawnFollowup("press");
+            }},
+            { label: "Bury it for cash", cls: "dirty", hint: "+cash · −ethics · corp notice", effect: () => {
+              state.cash += 180; state.ethics -= 10; state.heat += 4;
+              pushLog("Buried the dump for cash. A corp scout saved your handle.");
+              spawnFollowup("corp");
+            }},
+            { label: "Sit on it", cls: "", hint: "delay · world still moves", effect: () => {
+              state.heat += 2;
+              pushLog("Sat on a dump. The story mutated without you.");
+              spawnFollowup("delay");
+            }},
+          ],
+        });
+      } else if (state.heat > 40 && roll < 0.7) {
+        state.queue.push({
+          from: "unknown@burn",
+          title: "They know the loft.",
+          body: "Pay crypto to quiet a tipster, ghost town for a week, or bait them into a false lead.",
+          choices: [
+            { label: "Pay them off", cls: "dirty", hint: "−crypto · −heat", effect: () => {
+              state.crypto = Math.max(0, state.crypto - 0.05); state.heat = Math.max(0, state.heat - 15);
+              pushLog("Paid a tipster. Heat dipped. Darknet noticed the spend.");
+              spawnFollowup("dark");
+            }},
+            { label: "Go dark a week", cls: "", hint: "+day · −cash income", effect: () => {
+              state.day += 7; state.heat = Math.max(0, state.heat - 20); state.cash = Math.max(0, state.cash - 30);
+              pushLog("Went dark for a week. Room collected dust. Jobs piled up.");
+              spawnFollowup("press");
+            }},
+            { label: "Plant a false lead", cls: "help", hint: "risky · heat swings", effect: () => {
+              if (rand() > 0.45) { state.heat -= 18; pushLog("False lead worked. Heat bled off."); }
+              else { state.heat += 22; pushLog("False lead failed. They circled closer."); }
+              spawnFollowup("corp");
+            }},
+          ],
+        });
+      } else {
+        state.queue.push({
+          from: "jobs@greyboard",
+          title: "Routine work — or is it?",
+          body: "A greynet scrape pays okay. Escalate into something darker for mythic access, or refuse and keep your hands clean(ish).",
+          choices: [
+            { label: "Take the scrape", cls: "help", hint: "+cash · tiny heat", effect: () => {
+              state.cash += 70 + state.nic * 20; state.heat += 3;
+              pushLog("Finished a greynet scrape. Wallet thicker.");
+              spawnFollowup("press");
+            }},
+            { label: "Escalate dark", cls: "dirty", hint: "+crypto chance · ethics− · scam risk", effect: () => {
+              state.ethics -= 6;
+              if (rand() > 0.35) { state.crypto += 0.04 + rand() * 0.08; pushLog("Dark escalate paid in crypto."); }
+              else { state.heat += 14; state.cash = Math.max(0, state.cash - 40); pushLog("Dark escalate burned you. Partial scam."); }
+              spawnFollowup("dark");
+            }},
+            { label: "Refuse", cls: "", hint: "+ethics · opportunity mutates", effect: () => {
+              state.ethics += 4;
+              pushLog("Refused greynet work. A different offer will grow from the refusal.");
+              spawnFollowup("delay");
+            }},
+          ],
+        });
+      }
+    }
+
+    function spawnFollowup(kind) {
+      // Always enqueue more — infinite continuum
+      const followups = {
+        press: () => state.queue.push({
+          from: "ally@press",
+          title: "We need a relay.",
+          body: "Help host a relay (needs NIC), sell the slot to darknet, or ignore and let the ally fade.",
+          choices: [
+            { label: "Host relay", cls: "help", hint: "needs NIC≥1", effect: () => {
+              if (state.nic < 1) { toast("Need a VPN/NIC first."); return false; }
+              state.ethics += 5; state.heat += 6; state.trust += 5;
+              pushLog("Hosted a press relay from the loft.");
+              return true;
+            }},
+            { label: "Sell the slot", cls: "dirty", hint: "+crypto · −ethics", effect: () => {
+              state.crypto += 0.06; state.ethics -= 8; state.trust -= 3;
+              pushLog("Sold a relay slot on darknet. Ally went quiet.");
+              return true;
+            }},
+            { label: "Ignore", cls: "", hint: "ally cools", effect: () => {
+              state.trust -= 1; pushLog("Ignored an ally. Continuum thinned.");
+              return true;
+            }},
+          ],
+        }),
+        corp: () => state.queue.push({
+          from: "recruiter@corp.null",
+          title: "Contract with teeth.",
+          body: "Corp wants a quiet wipe. Pay is good. Soul optional.",
+          choices: [
+            { label: "Take corp wipe", cls: "dirty", hint: "+cash · −ethics · +heat later", effect: () => {
+              state.cash += 260; state.ethics -= 12; state.heat += 8;
+              pushLog("Took a corp wipe. Money loud. Conscience quiet.");
+              return true;
+            }},
+            { label: "Expose the recruiter", cls: "help", hint: "+ethics · +heat now", effect: () => {
+              state.ethics += 7; state.heat += 16;
+              pushLog("Exposed a corp recruiter. Heat spiked. Forums cheered.");
+              return true;
+            }},
+            { label: "Negotiate more pay", cls: "", hint: "coin flip", effect: () => {
+              if (rand() > 0.5) { state.cash += 320; pushLog("Squeezed more pay from corp."); }
+              else { state.heat += 10; pushLog("Negotiation flagged you. Heat +."); }
+              return true;
+            }},
+          ],
+        }),
+        dark: () => state.queue.push({
+          from: "vendor@onion",
+          title: "Escrow or exit?",
+          body: "A darknet seller offers escrow on mythic parts — or invites you into an exit-scam crew.",
+          choices: [
+            { label: "Use escrow", cls: "help", hint: "safer buys", effect: () => {
+              state.trust += 6; pushLog("Started using darknet escrow. Trust rose.");
+              return true;
+            }},
+            { label: "Join exit crew", cls: "dirty", hint: "+crypto · ethics collapse", effect: () => {
+              state.crypto += 0.2; state.ethics -= 20; state.heat += 18;
+              pushLog("Joined an exit-scam crew. Wallet fat. Mirror ugly.");
+              return true;
+            }},
+            { label: "Report seller", cls: "", hint: "mixed", effect: () => {
+              state.trust += 2; state.heat += 5; pushLog("Reported a seller. Some thank you. Some hunt you.");
+              return true;
+            }},
+          ],
+        }),
+        delay: () => state.queue.push({
+          from: "system@loft",
+          title: "The loft remembers.",
+          body: "While you waited, dust settled and new signals formed. Sweep the room, tune the antenna, or sleep longer.",
+          choices: [
+            { label: "Sweep & rewire", cls: "help", hint: "tiny upgrades", effect: () => {
+              state.cpu += 0.5; state.heat = Math.max(0, state.heat - 3);
+              pushLog("Rewired the loft. Machine breathes easier.");
+              return true;
+            }},
+            { label: "Tune antenna", cls: "dirty", hint: "opens darker jobs", effect: () => {
+              state.nic += 1; state.heat += 5; pushLog("Antenna tuned. Darker jobs hear you.");
+              return true;
+            }},
+            { label: "Sleep longer", cls: "", hint: "+day", effect: () => {
+              state.day += 1; pushLog("Slept. Continuum advanced a day.");
+              return true;
+            }},
+          ],
+        }),
+      };
+      (followups[kind] || followups.delay)();
+    }
+
+    function renderInbox() {
+      ensureMail();
+      const mail = state.queue[0];
+      document.getElementById("mailFrom").textContent = mail.from;
+      document.getElementById("mailTitle").textContent = mail.title;
+      document.getElementById("mailBody").textContent = mail.body;
+      const box = document.getElementById("mailChoices");
+      box.innerHTML = "";
+      mail.choices.forEach((c) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        if (c.cls) b.className = c.cls;
+        b.innerHTML = `${c.label}<small>${c.hint}</small>`;
+        b.onclick = () => {
+          const ok = c.effect();
+          if (ok === false) return;
+          state.queue.shift();
+          state.heat = clamp(state.heat, 0, 100);
+          state.ethics = clamp(state.ethics, 0, 100);
+          toast("Consequence written to continuum.");
+          ensureMail();
+          go("log");
+          renderLog();
+        };
+        box.appendChild(b);
+      });
+    }
+
+    function jobDefs() {
+      return [
+        { name: "Local password spray", need: () => true, pay: () => 35, heat: 2, req: "any laptop" },
+        { name: "Corp mailbox scrape", need: () => state.nic >= 1, pay: () => 120 + state.cpu * 10, heat: 8, req: "NIC / VPN" },
+        { name: "Server infiltrate", need: () => state.cpu >= 3 && state.psu >= 1, pay: () => 300, heat: 14, req: "CPU+PSU" },
+        { name: "Dark auction sniff", need: () => state.rack >= 1 || state.nic >= 2, pay: () => 0, crypto: () => 0.09, heat: 18, req: "rack or dual NIC" },
+        { name: "Infinite contract #" + (state.day * 3 + state.log.length), need: () => state.cpu >= 1, pay: () => 50 + Math.floor(rand() * 80), heat: 4, req: "online" },
+      ];
+    }
+
+    function renderJobs() {
+      const list = document.getElementById("jobList");
+      list.innerHTML = "";
+      jobDefs().forEach((j) => {
+        const open = j.need();
+        const el = document.createElement("button");
+        el.type = "button";
+        el.className = "card";
+        el.disabled = !open;
+        el.style.opacity = open ? "1" : "0.45";
+        const payout = j.crypto ? `${j.crypto().toFixed(3)}₿` : `$${j.pay()}`;
+        el.innerHTML = `<div class="row"><span class="name">${j.name}</span><span class="tag">${open ? "open" : "locked"}</span></div>
+          <p class="meta">Requires: ${j.req}</p>
+          <div class="price">${payout} · heat +${j.heat}</div>`;
+        el.onclick = () => {
+          if (!open) return;
+          if (j.crypto) state.crypto += j.crypto();
+          else state.cash += j.pay();
+          state.heat = clamp(state.heat + j.heat, 0, 100);
+          pushLog(`Completed job: ${j.name}.`);
+          toast("Job complete. Continuum updated.");
+          ensureMail();
+          renderJobs();
+        };
+        list.appendChild(el);
+      });
+    }
+
+    function renderShop() {
+      const list = document.getElementById("shopList");
+      list.innerHTML = "";
+      storeItems.forEach((item) => {
+        const el = document.createElement("button");
+        el.type = "button";
+        el.className = "card";
+        el.innerHTML = `<div class="row"><span class="name">${item.name}</span><span class="tag">store</span></div>
+          <p class="meta">${item.desc}</p>
+          <div class="price">$${item.price}</div>`;
+        el.onclick = () => {
+          if (state.cash < item.price) return toast("Not enough cash.");
+          state.cash -= item.price;
+          item.apply();
+          if (state.cpu >= 3) state.osTier = Math.max(state.osTier, 1);
+          pushLog(`Bought ${item.name} from the store.`);
+          toast(`Installed: ${item.name}`);
+          renderRoom();
+        };
+        list.appendChild(el);
+      });
+    }
+
+    function darkListings() {
+      const drift = 0.8 + rand() * 0.8;
+      return [
+        {
+          id: "mythic",
+          name: "Spectre NIC · Mk.VII",
+          tag: "Mythic",
+          mythic: true,
+          meta: "Military surplus. Untouched. Ships in 10 min. Maybe.",
+          price: +(1.2 * drift).toFixed(2),
+          buy() {
+            if (state.crypto < this.price) { toast("Not enough crypto."); return; }
+            state.crypto -= this.price;
+            const r = rand();
+            if (r > 0.78) {
+              state.nic += 3; state.osTier = Math.max(state.osTier, 2);
+              pushLog("Mythic NIC arrived clean. Impossible jobs unlocked.");
+              toast("Clean mythic deal. Rare.");
+            } else if (r > 0.4) {
+              state.nic += 1; state.heat += 10;
+              pushLog("Mythic NIC partial — works, tracked.");
+              toast("Partial: works, but tagged.");
+            } else {
+              state.heat += 16;
+              pushLog("Mythic listing was an exit scam. Crypto gone.");
+              toast("Exit scam. Box empty.");
+            }
+          },
+        },
+        {
+          id: "psu",
+          name: "Quiet PSU (modded)",
+          tag: "Rare",
+          meta: "Works. Provenance unknown.",
+          price: +(0.08 * drift).toFixed(3),
+          buy() {
+            if (state.crypto < this.price) { toast("Not enough crypto."); return; }
+            state.crypto -= this.price;
+            if (rand() > 0.25) { state.psu += 1; pushLog("Darknet PSU installed."); toast("PSU online."); }
+            else { state.heat += 8; pushLog("PSU bricked on first boot."); toast("Bricked. Heat +."); }
+          },
+        },
+        {
+          id: "rack",
+          name: "Mini rack blade",
+          tag: "Deal?",
+          meta: "Price too low. Rep brand new.",
+          price: +(0.03 * drift).toFixed(3),
+          buy() {
+            if (state.crypto < this.price) { toast("Not enough crypto."); return; }
+            state.crypto -= this.price;
+            if (rand() > 0.55) {
+              state.rack += 1; state.osTier = Math.max(state.osTier, 2);
+              pushLog("Rack blade is real. Loft changes shape.");
+              toast("Rack installed in the loft.");
+            } else {
+              state.heat += 6;
+              pushLog("Rack deal was bricks + malware 'drivers'.");
+              toast("Scammed. Continuum notes it.");
+            }
+          },
+        },
+      ];
+    }
+
+    function renderDarknet() {
+      document.getElementById("dnCrypto").textContent = `${state.crypto.toFixed(3)} ₿`;
+      document.getElementById("dnTrust").textContent =
+        state.trust > 40 ? "KNOWN" : state.trust > 15 ? "SKETCHY" : "UNKNOWN";
+      const list = document.getElementById("dnList");
+      list.innerHTML = "";
+      darkListings().forEach((item) => {
+        const el = document.createElement("button");
+        el.type = "button";
+        el.className = "card" + (item.mythic ? " mythic" : "");
+        el.innerHTML = `<div class="row"><span class="name">${item.name}</span><span class="tag">${item.tag}</span></div>
+          <p class="meta">${item.meta}</p>
+          <div class="price">${item.price} ₿ · outcomes vary</div>`;
+        el.onclick = () => { item.buy(); renderDarknet(); renderRoom(); };
+        list.appendChild(el);
+      });
+    }
+
+    function renderLog() {
+      const list = document.getElementById("logList");
+      list.innerHTML = "";
+      if (!state.log.length) {
+        list.innerHTML = `<div class="log-item"><time>DAY ${state.day}</time>Continuum empty — for now. Every action writes here forever.</div>`;
+        return;
+      }
+      state.log.forEach((e) => {
+        const d = document.createElement("div");
+        d.className = "log-item";
+        d.innerHTML = `<time>DAY ${e.day}</time>${e.text}`;
+        list.appendChild(d);
+      });
+    }
+
+    // Wire UI
+    document.getElementById("startBtn").onclick = () => {
+      pushLog("Entered the loft. Continuum begins.");
+      go("room");
+    };
+    document.getElementById("laptopBtn").onclick = () => go("desktop");
+    document.getElementById("useLaptop").onclick = () => go("desktop");
+    document.getElementById("exitDesktop").onclick = () => go("room");
+    document.getElementById("sleepBtn").onclick = () => {
+      state.day += 1;
+      state.heat = clamp(state.heat - 3, 0, 100);
+      // Infinite world tick — always spawn more pressure
+      if (rand() > 0.4) ensureMail();
+      if (rand() > 0.7) {
+        state.crypto = +(state.crypto * (0.92 + rand() * 0.2)).toFixed(4);
+        pushLog("Crypto prices drifted overnight.");
+      }
+      pushLog(`Slept. Day ${state.day} begins.`);
+      toast(`Day ${state.day}. The loft continues.`);
+      renderRoom();
+    };
+    document.getElementById("termBtn").onclick = () =>
+      toast(`heat=${Math.round(state.heat)} ethics=${Math.round(state.ethics)} nic=${state.nic} cpu=${state.cpu}`);
+
+    document.querySelectorAll("[data-go]").forEach((b) => {
+      b.onclick = () => go(b.getAttribute("data-go"));
+    });
+    document.querySelectorAll("[data-back]").forEach((b) => {
+      b.onclick = () => go(b.getAttribute("data-back"));
+    });
+  </script>
+</body>
+</html>
